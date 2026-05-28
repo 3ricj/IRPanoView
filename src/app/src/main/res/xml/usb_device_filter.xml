@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- TOPDON / current unit (TopView streaming capture) -->
+    <usb-device vendor-id="11231" product-id="258" />
+    <!-- TC001Max / legacy Topdon VID (stream_win.conf family) -->
+    <usb-device vendor-id="13428" product-id="18786" />
+</resources>

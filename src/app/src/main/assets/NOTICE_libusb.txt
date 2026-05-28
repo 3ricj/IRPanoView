@@ -1,0 +1,8 @@
+libusb 1.0
+============
+
+IRPanoView ships libusb (LGPL-2.1-or-later) for native USB transport on the Hik
+protocol path. Vendor libusb1.0.so extracted from TopInfrared reference APK for
+arm64-v8a parity testing, or built from https://github.com/libusb/libusb.
+
+See libusb/COPYING in the upstream source distribution.

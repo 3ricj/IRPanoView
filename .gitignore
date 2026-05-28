@@ -1,0 +1,31 @@
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.tmp
+*.log
+
+# IDE metadata
+.idea/
+.vscode/
+*.iml
+
+# Local machine Android SDK config
+local.properties
+**/local.properties
+
+# Gradle and Android build artifacts
+.gradle/
+**/.gradle/
+**/build/
+**/.cxx/
+**/.externalNativeBuild/
+**/.kotlin/
+
+# Generated APK archive output
+src/builds/
+
+# Signing and local secret material
+*.jks
+*.keystore
+keystore.properties
