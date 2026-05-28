@@ -22,7 +22,7 @@ sequenceDiagram
   Host->>Dev: initConfig SETs 0x7ED 0x7EB 0x7EF
   Host->>Dev: SET video param 0xBBC
   Host->>Dev: Arm stream delivery
-  Dev-->>Host: UVC composite frame 200704 B
+  Dev-->>Host: UVC frame (200704 canonical or jumbo restart variant)
 ```
 
 ---
@@ -155,13 +155,14 @@ GET id **0xBBB** / SET id **0xBBC**. Wire payload is compact (≤ **0xA8** B).
 
 ## Step 7 — Start stream delivery
 
-Arm bulk frame delivery with stream type **0x67**. The host reads frames from bulk IN and validates size:
+Arm bulk frame delivery with stream type **0x67**. The host reads frames from bulk IN, classifies payload shape, and normalizes as needed:
 
 | Field | Expected |
 |-------|----------|
-| Frame buffer length | **201,248 (0x31220)** |
+| Canonical payload | **200,704 (0x31000)** |
+| Jumbo payload (restart artifact) | **201,248 (0x31220)** primary; nearby variants may appear |
 
-Reject **200,704**-byte frames — that size indicates a different protocol family.
+Accept both recognized shapes. If jumbo is detected, normalize to canonical `200704` (map temp/yuv planes, zero-fill footer rows) before decode.
 
 ---
 
@@ -198,7 +199,7 @@ Poll command state between each SET.
 | Hardware server never reaches 3 | Bind incomplete; wrong interface claimed |
 | SET succeeds but reads pin old values | Missing command-state poll |
 | Bulk read timeout | Video param not set; wrong endpoint; stream not armed |
-| Assembled payload ≠ 200704 | Incomplete UVC assembly; resync on FID/EOF; check USB bandwidth |
+| Assembled payload not canonical/jumbo | Incomplete or malformed UVC assembly; resync on FID/EOF; check USB bandwidth |
 | Bulk read timeout before first EOF | Video param not set; stream not armed; increase timeout ≥ 8000 ms |
 
 ---
@@ -220,7 +221,8 @@ get_modify_set(ROUTE_THERM_BASIC, patch_overlay_off_and_defaults)
 set_video_param(format=0x67, width=8, height=0x3122, fps=25)
 arm_stream_delivery(stream_type=0x67)
 
-frame = uvc_assemble_bulk_in(ep=0x81)   # FID/EOF → 200704 B payload
+frame = uvc_assemble_bulk_in(ep=0x81)   # FID/EOF → canonical or jumbo wire payload
+frame = normalize_if_jumbo(frame)       # output contract: 200704 B canonical composite
 decode_temperature_grid(frame)          # radiometric band @ 0x0
 ```
 

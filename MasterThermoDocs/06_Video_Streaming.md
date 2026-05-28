@@ -1,6 +1,6 @@
 # 06 — Video streaming
 
-Streaming couples a **DeviceConfig video parameter** with **bulk IN delivery** of UVC composite frames (**200,704 B** assembled payload per frame).
+Streaming couples a **DeviceConfig video parameter** with **bulk IN delivery** of UVC frames. Decode/render uses a canonical **200,704 B** composite payload, while restart windows can emit jumbo wire payloads that must be normalized first.
 
 ---
 
@@ -32,7 +32,7 @@ Stream delivery is armed with **stream type 0x67** matching the video format.
 4. SET video param 0xBBC
 5. Poll command state
 6. Arm stream delivery (type 0x67)
-7. Bulk IN read loop → UVC payload assembly → 200704 B frames
+7. Bulk IN read loop → UVC payload assembly → classify canonical/jumbo → normalize to 200704 B decode contract
 ```
 
 Do not arm streaming before hardware-server status **≥ 2**.
@@ -48,7 +48,7 @@ Do not arm streaming before hardware-server status **≥ 2**.
 | USB transfer size | ~**5020** B (includes 2-byte UVC header) |
 | Payload per transfer | ~**5018** B |
 | Transfers per frame | ~**40** |
-| **Assembled frame payload** | **200,704 (0x31000)** |
+| **Assembled frame payload** | **200,704 (0x31000)** canonical; jumbo variants observed (`201248` primary) |
 | Nominal rate | **25 fps** (~4.8 MB/s) |
 
 Resolve endpoint address from the USB configuration descriptor at stream open. Read with timeout **≥ 8000 ms** for the first frame after start.
@@ -63,10 +63,11 @@ Process each complete assembled frame before accepting the next bulk transfer if
 
 | Assembled payload length | Action |
 |--------------------------|--------|
-| **200,704** | Valid composite frame — decode |
+| **200,704** | Valid canonical composite frame — decode |
+| **201,248** (and close variants) | Valid jumbo wire frame — normalize to canonical **200,704**, then decode |
 | Other | Partial assembly, resync, or error — retry or abort |
 
-**Note:** Some host stacks or SDK callbacks may report **201,248** bytes when transport padding or misaligned slicing is included. The canonical image payload is **200,704** B — one **256×392** composite raster.
+**Note:** Jumbo payloads are treated as an alternate wire container in restart/re-arm windows, not a second decode math path. After normalization, downstream decode stays on the same **200,704** composite contract.
 
 ---
 
@@ -94,7 +95,7 @@ Keep userId, fd, claims — no alt-0, release, close, or Logout
 ```
 Same process: init/login skipped; bind + startStream again
 Wire: ~72 control xfers (full re-bind class) + initConfig + SET 0xBBC + arm
-~1.2 s from startStream to first 200704 B assembled frame (single cam, after UI nav)
+~1.2 s from startStream to first canonical decode frame (`200704`) (single cam, after UI nav)
 ```
 
 **QuadView notes:** All leave paths (Exit, Compose dispose, `onDestroy` fallback) → reference pause via `pauseAll` / `referenceLeave` (cancel+join, keep fd). Resume skips re-claim when interfaces already held (`resume=keepClaims`). Recipe **E10** default; **E10D** adds alt-0 disarm for A/B fallback. See doc 16.

@@ -84,7 +84,7 @@ Session: **`userId` valid**, USB fd and claimed interfaces **stay open** from th
 
 **Trigger:** Scenario A → hold ~12 s → automated re-navigation to thermal (no hub replug, no force-stop).
 
-**Result:** `reopen_ok=true` — 200704 B composite frames resume without power-cycle.
+**Result:** `reopen_ok=true` — stream resumes without power-cycle; canonical decode contract remains `200704` even when restart windows emit jumbo wire payloads that normalize first.
 
 ### Java layer — warm session, not warm wire
 
@@ -117,7 +117,7 @@ Then `startStream` path: readiness poll **0x7DE**, SET **0xBBC**, stream callbac
 | `stopStream` → `USB_StopChannel` | 0–1 ms |
 | `USB_StopChannel` Java → native ret | 3–9 ms |
 | Last frame before stop → `startStream` #2 (wall) | ~**36 s** (includes 12 s scripted hold + UI navigation) |
-| `startStream` #2 → first 200704 B assembled frame | ~**1.2 s** |
+| `startStream` #2 → first canonical decode frame (`200704`) | ~**1.2 s** |
 | Control xfers on re-enter | ~**72** |
 
 Do **not** assume a 500 ms settle alone is enough when the UI re-enters thermal — the reference app pays a **full control-plane re-bind** even though the SDK session handle was never logged out.
@@ -141,7 +141,7 @@ sequenceDiagram
   Hik->>SDK: startStream
   SDK->>Dev: ~72 ctrl xfers (re-bind class)
   SDK->>Dev: 0x7DE poll, SET 0xBBC, StartStreamCallback
-  Dev-->>Hik: UVC composite 200704 B frames
+  Dev-->>Hik: UVC canonical or jumbo wire frames (jumbo normalizes to canonical 200704)
   Hik->>Hik: onReady → initConfig (0x7ED/EB/EF)
 ```
 

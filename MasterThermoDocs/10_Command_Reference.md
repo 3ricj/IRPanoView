@@ -47,7 +47,7 @@ DeviceConfig command catalog for **TC002C Duo** live streaming and thermometry. 
 | P | GET | SET | Name | Notes |
 |---|----:|----:|------|-------|
 | P0 | 0xBBB | **0xBBC** | Video param | fmt **0x67**, 25 fps |
-| P0 | — | — | Stream delivery | UVC composite **200704** B |
+| P0 | — | — | Stream delivery | Canonical UVC composite **200704** B; jumbo wire payloads may appear during restart and normalize to canonical |
 | P2 | 0x7F6 | 0x7F7 | Thermal stream param | unused TC002C |
 | P2 | 0x853 | 0x854 | YUV resolution | catalog |
 

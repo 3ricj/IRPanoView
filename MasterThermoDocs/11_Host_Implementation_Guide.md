@@ -10,7 +10,7 @@ Checklist for building a host that speaks the Hik USB thermal protocol directly 
 |-------------|--------|
 | USB access | Userspace driver binding with control + bulk |
 | Exclusive device | Release other consumers before claiming interfaces |
-| Frame contract | **200,704** B assembled UVC composite payload |
+| Frame contract | Decode contract is **200,704** B canonical composite; wire may also deliver jumbo restart payloads that normalize into this contract |
 
 ---
 
@@ -46,6 +46,7 @@ WIRE_OFF_DISTANCE = 21
 # Stream / composite frame
 STREAM_FORMAT = 0x67
 FRAME_BYTES = 200_704
+JUMBO_FRAME_BYTES_PRIMARY = 201_248
 ROW_BYTES = 512
 RADIO_BASE = 0x0
 ROW_BYTES = 512
@@ -121,7 +122,8 @@ get_modify_set(0x7EF, patch_therm)
 set_video_param(format=0x67, width=8, height=0x3122, fps=25)
 arm_stream(type=0x67)
 
-frame = uvc_assemble_frame(BULK_EP)   # FID/EOF → 200704 B
+frame = uvc_assemble_frame(BULK_EP)   # FID/EOF → canonical or jumbo wire payload
+frame = normalize_if_jumbo(frame)     # always returns canonical 200704 B composite
 assert len(frame) == FRAME_BYTES
 t = celsius_from_raw(read_radio_u16(frame, x=128, y=96))
 ```
@@ -148,12 +150,12 @@ See **[16_Pause_Resume_And_Lifecycle.md](16_Pause_Resume_And_Lifecycle.md)** for
 | Bind | GET **0x7DB** returns **488 B** (not **2 B** stub); GET **0x7DE** returns **3 B** |
 | Ready gate | Hardware server status ≥ 2 within 30 s |
 | initConfig | Three SETs complete; command poll idle |
-| Stream | UVC assembly yields 200704 B composite frames |
+| Stream | UVC assembly yields canonical 200704 directly or jumbo payloads that normalize to 200704 before decode |
 | Decode | Center pixel plausible °C for indoor scene |
 | Emissivity SET | GET reflects new wire emissivity |
 | Range SET | `byTemperatureRange` toggles 2 ↔ 3 |
 | Shutter | Control **0x7E9** completes without USB stall |
-| Pause + resume | After soft pause, re-enter streams 200704 B frames without hub power-cycle; expect ~70+ ctrl xfers on resume |
+| Pause + resume | After soft pause, re-enter streams and sustain canonical decode (`200704`), including restart windows where jumbo wire payloads appear |
 
 ---
 
@@ -173,7 +175,7 @@ Each device needs:
 
 | Mistake | Fix |
 |---------|-----|
-| Single bulk read of 201248 B | Assemble via UVC FID/EOF; canonical payload is **200704** |
+| Rejecting all `>200704` payloads | Classify jumbo (`201248` primary and close variants), normalize, then decode via canonical path |
 | Grid at offset 0x1220 | Radiometry is YUYV-like LE16 temp pairs @ **0x0** (not flat u16 @ 0x18800) |
 | Skipping +0x37C0 | Apply bias once when building grid |
 | Double bias at measure | Measure uses **stored_u16** |
@@ -182,7 +184,7 @@ Each device needs:
 | Stream before ready gate | Poll **0x7DE** until status ≥ 2 |
 | Skipping bind preamble | Cold GET **0x7DB** returns **2 B** stub — run full bind (doc 03 Step 3) |
 | First-match enumeration | With 2+ cameras, open by **serial** or **bus+addr** |
-| Wrong protocol family | Verify **200704** B composite and **0x7EF** on **wValue 0x0300** |
+| Wrong protocol family | Verify canonical decode contract (**200704**) with jumbo normalization support, and **0x7EF** on **wValue 0x0300** |
 
 ---
 

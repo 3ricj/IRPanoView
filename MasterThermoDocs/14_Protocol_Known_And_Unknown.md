@@ -12,7 +12,7 @@ Central registry of confirmed protocol facts vs open items for TC002C Duo (VID *
 | Extension unit wIndex | Typically **0x0A00** | Alternate wIndex on other SKUs |
 | UVC route for DeviceConfig | phase **(0x02, 0x05)**, wValue **0x0200** (GET) / **0x0300** (SET) | — |
 | Bulk stream endpoint | **0x81** typical | Whether other endpoints carry format **0x67** on variants |
-| Frame size | **200,704** B assembled UVC payload | — |
+| Frame size | Canonical **200,704** B assembled UVC payload; jumbo **201,248** primary observed in restart windows | Full variant list across firmware builds |
 | Stream format code | **0x67** | Other format codes on same hardware |
 
 ---
@@ -60,7 +60,7 @@ See [15_Device_Info_And_Identity.md](15_Device_Info_And_Identity.md).
 
 | Offset / region | Known | Unknown |
 |-----------------|-------|---------|
-| Total payload size | **200,704** B (**256×392** YUYV, **512 B/row**) | — |
+| Total payload size | Canonical **200,704** B (**256×392** YUYV, **512 B/row**) | Jumbo wire container variants (`201248` primary; nearby variants) and exact per-variant header semantics |
 | Radiometric band | **0x000000**, **256×192** YUYV-like LE16 temp pairs | Macropixel field map beyond temp slots |
 | Footer1 | **0x018000**, **4** rows — binary metadata | Field map |
 | Visible band | **0x018800**, **256×192** grayscale YUYV (Y varies, U/V ≈ **0x80**) | LUT entry format on wire |

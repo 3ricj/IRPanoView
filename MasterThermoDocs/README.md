@@ -36,7 +36,7 @@ Protocol documentation for the **Hik USB thermal camera protocol** used by TopDo
 3. **Wait** until hardware-server `byDeviceInitialStatus` is **2** or **3** (ready to stream).
 4. **initConfig:** GET/modify/SET image video adjust (**0x7ED**), image enhancement (**0x7EB**), therm basic param (**0x7EF**).
 5. **Stream:** SET video param (**0xBBC**, format **0x67**, 25 fps) then start stream delivery.
-6. **Bulk IN:** assemble UVC payload packets from endpoint **0x81** (typical) → **200,704** B composite frame on EOF.
+6. **Bulk IN:** assemble UVC payload packets from endpoint **0x81** (typical) → canonical **200,704** B composite frame, or recognized jumbo payloads that normalize to canonical.
 7. **Decode:** radiometric band **0x000000–0x017FFF** — YUYV-like LE16 temp pairs; add bias **0x37C0**, convert `T_°C = stored_u16 / 64 − 273.15`.
 
 ---

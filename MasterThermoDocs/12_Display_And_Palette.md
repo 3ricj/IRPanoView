@@ -1,6 +1,6 @@
 # 12 — Display, visible band, and palette
 
-Composite stream **format 0x67** includes a **98,304-byte visible band** (LUT grayscale YUYV) at **0x018800** in each **200,704-byte** UVC composite frame, plus a separate **radiometric** band at **0x0**. Display appearance is controlled through **image DeviceConfig commands** and optionally through **host-side colorization** of the radiometric grid.
+Composite stream **format 0x67** includes a **98,304-byte visible band** (LUT grayscale YUYV) at **0x018800** in each canonical **200,704-byte** UVC composite frame, plus a separate **radiometric** band at **0x0**. Restart windows may deliver jumbo wire payloads first; those are normalized to canonical layout before display/measurement paths consume them. Display appearance is controlled through **image DeviceConfig commands** and optionally through **host-side colorization** of the radiometric grid.
 
 ---
 

@@ -1,6 +1,9 @@
 # 07 — Frame format and temperature decode
 
-Each streaming frame is a **200,704-byte UVC composite payload** — a single **256×392 YUYV** raster (**512 B/row**) delivered over bulk IN with per-transfer UVC payload headers. There is **one** frame format; earlier “super-frame” / **201,248 B** / **0x1220** grid-offset models were misread transport padding and header bytes, not a second protocol.
+Streaming uses a canonical **200,704-byte UVC composite payload** (**256×392 YUYV**, **512 B/row**) for decode/render, but restart windows may deliver a second on-wire shape ("jumbo") that must be normalized before decode.
+
+- **Canonical wire payload:** `200704` (`0x31000`)
+- **Jumbo wire payloads:** `201248` (primary), with nearby observed variants (`201256`, `201258`)
 
 ---
 
@@ -49,6 +52,30 @@ footer2 = data[0x030800:0x031000]   # 4 rows — ASCII diagnostics
 
 ---
 
+## Alternate jumbo wire layout (restart artifact)
+
+When jumbo payloads are observed, they are treated as an alternate wire container for the same two image planes:
+
+```
+Offset (hex)   Size (hex)   Content
+──────────────────────────────────────────────────────────
+0x000000       ~0x001220    jumbo header / prefix (variable across variants)
+0x001220       0x018000     temp plane (98304 B)
+tail-0x018000  0x018000     yuv plane  (98304 B, at end of payload)
+──────────────────────────────────────────────────────────
+Total          0x031220     201,248 B (primary observed)
+```
+
+Normalization to canonical `200704`:
+
+- canonical `radio` (`0x000000..0x017FFF`)  <- jumbo temp plane
+- canonical `visible` (`0x018800..0x0307FF`) <- jumbo tail yuv plane
+- canonical `footer1/footer2` rows are zero-filled (jumbo does not provide footer payload semantics)
+
+The decoder path remains single-path after normalization.
+
+---
+
 ## UVC bulk assembly
 
 Bulk IN does **not** return one fixed-size read per frame. Each USB transfer is a **UVC payload packet**:
@@ -61,17 +88,17 @@ Bulk IN does **not** return one fixed-size read per frame. Each USB transfer is 
 | `bmHeaderInfo` bits | **FID** (0x01), **EOF** (0x02) |
 | Payload per transfer | ~**5018** B (transfer size ~**5020** B minus header) |
 | Transfers per frame | ~**40** |
-| Assembled payload on **EOF** | **200,704** B |
+| Assembled payload on **EOF** | **200,704** canonical, or jumbo variants (`201248` primary) |
 
 Assembly (libuvc-style):
 
 1. Strip the UVC header from each bulk IN transfer.
 2. Append payload bytes to a reassembly buffer.
 3. On **FID** toggle with data already buffered, or on **EOF**, or at max size — emit one frame.
-4. Validated frame length is exactly **200,704** B.
+4. Accept either canonical **200,704** or recognized jumbo sizes; normalize jumbo to canonical **200,704** before decode.
 5. Optionally trim a **2-byte** wire leader **`0x73 0x77`** if present at payload start (transport prefix, not part of the composite raster).
 
-Do **not** scan for a fixed “magic” u32 at byte 0 of the composite — that was a sync artifact from misaligned reads. Trust **FID/EOF** byte counts.
+Do not rely on fixed-size USB reads. Trust **FID/EOF** assembly plus size classification (canonical vs jumbo).
 
 Stream delivery and arming: [06_Video_Streaming.md](06_Video_Streaming.md).
 
@@ -263,7 +290,8 @@ Emissivity, distance, ambient, and range on **0x7EF** influence the **raw_u16** 
 
 ## Validation checklist
 
-- [ ] Assembled UVC payload length exactly **200,704**
+- [ ] Assembled UVC payload length is canonical **200,704** or recognized jumbo (`201248` primary; nearby variants accepted when shape matches)
+- [ ] Jumbo payloads normalize to canonical **200,704** before decode
 - [ ] Radiometric band at **0x000000**, YUYV-like LE16 temp pairs, **256×192**
 - [ ] Visible band at **0x018800**, Y varies, U/V ≈ **0x80**
 - [ ] Bias **0x37C0** applied once

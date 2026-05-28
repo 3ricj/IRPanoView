@@ -23,7 +23,7 @@ flowchart LR
   subgraph stream [Stream plane]
     D[SetVideoParam 0xBBC] --> E[Start stream delivery]
     E --> F[Bulk IN UVC assembly]
-    F --> G[200704 B composite frame]
+    F --> G[Canonical 200704 B frame]
   end
   subgraph measure [Measure plane]
     G --> H[Extract u16 from radiometric @ 0x0]
@@ -46,7 +46,7 @@ Two command styles exist:
 
 ### Stream plane
 
-Streaming is not plain UVC MJPEG. The host sets **video format code 0x67** via command **0xBBC**, arms bulk delivery, then assembles **~40** bulk IN transfers per frame into a **200,704-byte** composite buffer at ~25 fps.
+Streaming is not plain UVC MJPEG. The host sets **video format code 0x67** via command **0xBBC**, arms bulk delivery, then assembles **~40** bulk IN transfers per frame. Decode contract is canonical **200,704-byte** composite; restart windows may emit jumbo wire payloads (primary **201,248**) that normalize into the same canonical frame.
 
 The format descriptor uses width **8** and height **12578 (0x3122)** — protocol bookkeeping values, not pixel dimensions. The composite raster is **256×392** YUYV (**512 B/row**); the radiometric band inside it is **256×192**.
 
@@ -63,13 +63,14 @@ Temperature readout is computed on the host from the **radiometric** band (**0x0
 | USB vendor ID | **0x2BDF** (11231) |
 | USB product ID | **0x0102** (258) |
 | Extension unit wIndex | **0x0A00** (session-derived; obtain after bind) |
-| Frame payload size | **200,704** bytes (0x31000) |
+| Canonical frame payload size | **200,704** bytes (0x31000) |
+| Alternate jumbo wire payload | **201,248** bytes primary (nearby variants observed) |
 | Composite raster | **256 × 392** YUYV |
 | Radiometric band | **256 × 192** YUYV-like LE16 temp pairs @ **0x0** |
 | Visible band | **256 × 192** grayscale YUYV @ **0x18800** |
 | Frame rate | **25** fps |
 
-Other product IDs may appear on sibling models; enumeration and bind behave the same when the assembled frame format matches **200,704 B**.
+Other product IDs may appear on sibling models; enumeration and bind behave the same when stream assembly yields canonical composite or recognized jumbo variants that normalize to canonical.
 
 ---
 
@@ -77,7 +78,7 @@ Other product IDs may appear on sibling models; enumeration and bind behave the 
 
 Use this documentation when:
 
-- Assembled UVC composite frames are **200,704** bytes
+- Assembled UVC frames are canonical **200,704** bytes, or recognized jumbo variants that normalize to canonical
 - Thermometry and image params use DeviceConfig commands **0x7EE/0x7EF** on **wValue 0x0300**
 - Extension unit **wIndex** is **0x0A00** (typical on TC002C Duo)
 
