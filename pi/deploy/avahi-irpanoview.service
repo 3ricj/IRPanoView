@@ -1,0 +1,13 @@
+<?xml version="1.0" standalone='yes'?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<service-group>
+  <name replace-wildcards="yes">IRPanoView on %h</name>
+  <service>
+    <type>_irpanoview._tcp</type>
+    <port>8766</port>
+    <host-name>irpanoview.local</host-name>
+    <txt-record>rtsp=8554</txt-record>
+    <txt-record>raw=8767</txt-record>
+    <txt-record>meta=8768</txt-record>
+  </service>
+</service-group>

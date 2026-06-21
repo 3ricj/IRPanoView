@@ -1,0 +1,18 @@
+{
+  "slot": 4,
+  "serial": "EA6462986",
+  "bus": "/dev/bus/usb/1/9",
+  "bulk_packets": 82,
+  "frames": 1,
+  "wire_bytes": 200704,
+  "error": null,
+  "tile": {
+    "raw_min": 4368,
+    "raw_max": 4639,
+    "raw_center": 4481,
+    "any_nonzero": true,
+    "celsius_min": 18.1,
+    "celsius_max": 22.3344,
+    "celsius_center": 19.8656
+  }
+}

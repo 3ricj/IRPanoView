@@ -1,0 +1,9 @@
+{
+  "frames": 125,
+  "wait_s": 5,
+  "eq_alpha": 0.05,
+  "window_min_c": 10.475,
+  "window_max_c": 52.9281,
+  "eq_bias_u16": [11, 0, -61, 160],
+  "seam_delta": [-11, -61, 221]
+}

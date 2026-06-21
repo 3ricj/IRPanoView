@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "dgSpecHash": "WDM0rs+izjA=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\ericj\\OneDrive\\Documents\\GitHub\\IRPanoView\\viewer\\IRPanoView.Viewer\\IRPanoView.Viewer.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\ericj\\.nuget\\packages\\libvlcsharp\\3.9.0\\libvlcsharp.3.9.0.nupkg.sha512",
+    "C:\\Users\\ericj\\.nuget\\packages\\videolan.libvlc.windows\\3.0.21\\videolan.libvlc.windows.3.0.21.nupkg.sha512"
+  ],
+  "logs": []
+}

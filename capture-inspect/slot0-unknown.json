@@ -1,0 +1,23 @@
+{
+  "slot": 0,
+  "serial": "",
+  "bus": "/dev/bus/usb/1/7",
+  "bulk_packets": 0,
+  "frames": 0,
+  "wire_bytes": 0,
+  "error": "login failed",
+  "diag": {
+    "bad_header": 0,
+    "eof_count": 0,
+    "first_packets": []
+  },
+  "tile": {
+    "raw_min": 65535,
+    "raw_max": 0,
+    "raw_center": 0,
+    "any_nonzero": false,
+    "celsius_min": 0,
+    "celsius_max": 0,
+    "celsius_center": 0
+  }
+}

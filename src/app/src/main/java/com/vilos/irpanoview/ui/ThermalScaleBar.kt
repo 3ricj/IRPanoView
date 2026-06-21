@@ -11,34 +11,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.unit.dp
 import com.vilos.irpanoview.camera.ThermalColormap
-import com.vilos.irpanoview.camera.ThermalLevelRegistry
 import com.vilos.irpanoview.model.ThermalColorPalette
-import kotlinx.coroutines.delay
 
 @Composable
 fun ThermalScaleBar(
     palette: ThermalColorPalette,
+    windowMinC: Double,
+    windowMaxC: Double,
     modifier: Modifier = Modifier,
 ) {
-    var window by remember { mutableStateOf(ThermalLevelRegistry.displayWindow()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            window = ThermalLevelRegistry.displayWindow()
-            delay(250)
-        }
-    }
-
     Column(
         modifier = modifier.padding(horizontal = 8.dp, vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -69,12 +56,12 @@ fun ThermalScaleBar(
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
-                text = "${"%.1f".format(window.minCelsius)}°C",
+                text = "${"%.1f".format(windowMinC)}°C",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                text = "${"%.1f".format(window.maxCelsius)}°C",
+                text = "${"%.1f".format(windowMaxC)}°C",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

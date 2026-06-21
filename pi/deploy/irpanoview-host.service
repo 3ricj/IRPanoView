@@ -1,0 +1,28 @@
+[Unit]
+Description=IRPanoView thermal host (per-camera raw TCP + RTSP)
+After=network-online.target
+Wants=network-online.target
+# Never stop retrying at boot: USB cameras can take a while to enumerate.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+# Run as the normal user (NOT root): running as root grabs USB and fails.
+User=ericj
+Group=ericj
+Environment=HOME=/home/ericj
+# Creates /run/irpanoview owned by the service user for the control socket.
+RuntimeDirectory=irpanoview
+WorkingDirectory=/home/ericj
+# Give USB cameras a moment to come up after boot before enumerating.
+ExecStartPre=/bin/sleep 8
+ExecStart=/home/ericj/IRPanoView/pi/build/irpanoview-host \
+    --meta-dest 255.255.255.255 --meta-port 8768 \
+    --raw-tcp-port 8767 --rtsp-port 8554 \
+    --control-socket /run/irpanoview/control.sock \
+    --stitch-calib /home/ericj/stitch-calib --stitch-mode warp
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

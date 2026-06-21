@@ -1,0 +1,77 @@
+# IRPanoView networking (2026-06)
+
+## Current: shared WiFi AP
+- Phone + Pi on the **same router/AP** (not Pi hotspot yet)
+- Android Pi host default: **irpanoview.local** (mDNS) — or set LAN IP in Settings
+- RTSP **8554** (live H.264 Jet), raw TCP **8767**, meta UDP **8768**, WebSocket **8766**
+- Pi streams UDP broadcast on subnet; AP must allow device-to-device (disable "client isolation" if connect fails)
+
+## Pi SSH access
+- Host: **DHCP — currently 192.168.8.114** (was .115; hostname: IrPanoView, Ubuntu aarch64). ed25519 fp SHA256:hLOUKA3WIgnwU9P5DBIrnuzEavrpQNwedEIHSmXER5A. Pin with `-hostkey` if IP changes & key not cached.
+- User: **ericj**
+- Key (PuTTY): `c:\Users\ericj\OneDrive\Documents\keys\irpanoview.ppk`
+- Connect: `plink -ssh -i "...\irpanoview.ppk" ericj@192.168.8.115`
+- Source deployed to: `~/IRPanoView/pi` (2026-06-14, LF line endings)
+- Build status: **built** — `~/IRPanoView/pi/build/irpanoview-host` (2026-06-15 warp stitch)
+- PTGUI warp deployed: `~/stitch-calib/` (908×160), host running with `--stitch-mode warp`
+- Real host: `nohup ~/IRPanoView/pi/build/irpanoview-host --meta-dest 192.168.8.142 --control-socket ~/run/irpanoview/control.sock --stitch-calib ~/stitch-calib --stitch-mode warp &`
+- Critical fix: extension UVC wIndex must stay 0x0A00 (not streaming iface); see hik_usb_device.cpp
+
+## Future: standalone Pi hotspot
+- Configs kept in pi/deploy/hostapd.conf + dnsmasq.conf (SSID IRPanoView, 192.168.4.1)
+- Migrate when ready for field use without a router
+
+## Timelapse -> TIF converter (2026-06-16)
+- Tool: `tools/timelapse/convert_timelapse.py` (py -3; needs numpy + Pillow, see its requirements.txt). tifffile NOT installed; uses Pillow for TIF (8-bit RGB, LZW).
+- Source frames: viewer RawTimelapseRecorder output. `*-u16.bin` = raw 908x160 LE u16 payload, NO header (290560 B). `.irpv` = same payload + 98 B header/meta (HeaderBytes 22 + MetaV2 72 + 4 trailer). Converter reads the `-u16.bin`.
+- Temp math mirrors viewer HikTherm: C = (raw + 0x37C0)/64 - 273.15. raw==0 = no-data (uncovered warp/edge, renders as Jet floor/blue) and is EXCLUDED from range stats.
+- Range: per-frame p1/p99 of valid px, then heavy EMA (`--ema-alpha` default 0.05) so min/max drift slowly -> no frame-to-frame flicker. `--min-span` 2.0 C. Linear map -> 256 LUT. HDR/local tone map is a future swap in `map_to_display()`.
+- Jet LUT replicates ThermalColormap.Jet exactly. 8-bit RGB out.
+- Output: `--output` (default `<input>/converted`), names `CONVERTED_NNNNNN.tif` starting `--start-index` 100000, +1 per output. `--skip` 100 (every Nth frame, fs[::skip]). Writes `convert_log.csv` (per-frame percentiles + locked window).
+- Test data: `C:\Users\ericj\OneDrive\Documents\thermal-test\timelapse-20260615-211625` (29338 frames; skip=100 -> 294 TIFs). Scene ~ -1..28 C. Verified render: cool sky blue, warm terrain red. ~26 fps.
+- Run full: `py -3 tools/timelapse/convert_timelapse.py` (uses default input/output). `--limit N` for quick tests.
+
+## Other
+- Do NOT push to remote / dev server without asking Eric first
+- NEVER use --demo on irpanoview-host. Real 4 USB cameras only. No exceptions.
+- v4l2h264enc on Pi needs `! video/x-h264,level=(string)4` after encoder (GStreamer 1.28 negotiates level 1.0 otherwise → bcm2835 fails)
+- Do NOT swap v4l2h264enc to software encoder without explicit approval — hw H.264 is required
+
+## Per-camera raw capture rework (2026-06-16)
+- GOAL CHANGE: stop stitching on Pi for the raw path; store/stream RAW per-camera radiometric (256x192) and stitch in POST. Keep RTSP pano on Pi for aiming.
+- Protocol: new IRPV flag `CAMERA_INFO`=0x04. 20-byte block after MetaV2 (slot u8, camera_count u8, reserved u16, serial[16]). `buildThermalCameraFrame()` in pi/proto/thermal_frame.{h,cpp}. C# parser ThermalFrameParser exposes CameraSlot/CameraCount/CameraSerial.
+- Pi host (host_state.cpp onCompositorTick): at raw_emit_fps (<=1Hz) loops slots 1..4, grabs orchestrator_.worker(i)->copyLatestSnapshot() 256x192 tile, sends one tagged IRPV frame per camera over TCP 8767. All 4 share emit_seq (group seq). RTSP + UDP meta unchanged. NOT yet built/deployed to Pi (needs Eric's OK).
+- Windows viewer reworked: RawCameraStreamClient (single persistent TCP client - server is single-client) routes frames by slot, drives live 1x4 quad Jet view (CameraQuadRenderer, shared window across cams), records per-camera files when toggled. MainForm now quad view (RTSP/meta/latency path removed from UI; RtspThermalReceiver/MetaStreamReceiver classes remain in tree, unused). RawTimelapseRecorder.cs DELETED.
+- Record layout: `<out>/rawcam-<ts>/cam{slot}_{serial}/frame-{group_seq:06d}.irpv` + `-u16.bin`; session `index.jsonl`. Files align across cam folders by group_seq for post-stitch. convert_timelapse.py can run per cam subfolder.
+- WIRE COMPRESSION (2026-06-16): per-camera payload zlib-deflated (level 6) on the wire. IRPV flag kFlagPayloadDeflate=0x08; header/meta/caminfo stay uncompressed. buildThermalCameraFrame(deflate_payload=true). irpv_proto links ZLIB::ZLIB (CMakeLists find_package ZLIB). Measured ~40% size (2.5x): 1.42->0.57 GB/hr @4cam. C# parser inflates via System.IO.Compression.ZLibStream. DISK recording is UNCOMPRESSED (-u16.bin from decompressed RawPixels) so convert_timelapse.py unaffected; compression is wire-only. Rebuilt+deployed Pi binary 2026-06-16 (NEEDS `sudo systemctl restart irpanoview-host` to load — sudo is password-gated, Eric runs it).
+- .irpv is now METADATA-ONLY (header+MetaV2+CameraInfo, ~114B) — payload stripped to avoid storing pixels twice (2026-06-16). Pixels live once in -u16.bin (98304B = 256x192 u16). NOTE: metadata-only .irpv will NOT parse via ThermalFrameParser.Parse (no payload) — it's a sidecar, by design.
+- Build: viewer builds clean (only pre-existing SnapshotExporter obsolete-PanoWidth warning).
+- N-CAMERA support (2026-06-16): HikHostOrchestrator::start() no longer requires 4 cams — runs with however many enumerate (>=1), missing slots stay nullptr (black in pano, omitted from per-cam raw). Skips cams that fail to open instead of aborting. composePano tiles zero-init. main.cpp msg updated.
+- DEPLOYED to Pi 2026-06-16 ~19:5x: pushed thermal_frame.{h,cpp}, host_state.cpp, hik_stitch.cpp, main.cpp; rebuilt (make irpanoview-host); host RUNNING at 192.168.8.114 with 3/4 cams (slot4 EA6473497 absent). Listening 8767 (per-cam raw) + 8554 (RTSP). Start cmd = standard nohup warp one from below.
+- Viewer default host is .115 — change to 192.168.8.114 to connect (DHCP).
+
+## Windows test viewer (C#)
+- Path: `viewer/` — WinForms app + CLI snapshot
+- GUI: `cd viewer && dotnet run --project IRPanoView.Viewer`
+- Snapshot: `dotnet run --project IRPanoView.Viewer -- --snapshot --out snapshots`
+- Build/run note: GUI locks `bin\Debug\...\IRPanoView.Viewer.exe`; kill running instance (`taskkill /F /IM IRPanoView.Viewer.exe`) before rebuild or copy fails.
+- Layout (2026-06-16): MainForm uses a TableLayoutPanel root (toolbar AutoSize row / picture 100% / stats Absolute 56px); buttons AutoSize so text isn't truncated; AutoScaleMode=Dpi. Fixed clipped buttons/overlap under DPI scaling.
+- Raw recorder (RawTimelapseRecorder): saves EVERY frame Pi pushes on TCP 8767 (interval = Pi pacing ~0.1-1Hz, no client interval). Files now timestamp-named `frame-yyyyMMdd-HHmmss-fff.irpv` + `-u16.bin` (collision guard appends index). Session dir `timelapse-<ts>/`; `index.jsonl` logs index, file stem, seq, timestamps. Verified working (recording=N frames in stats bar).
+- Pi host: **real cameras** (not demo), unicast to 192.168.8.142
+- Capture probe: `~/IRPanoView/pi/build/irpanoview-capture --out ~/irpv-capture --wait 5` (per-cam connect, sync, save frame, exit)
+- Align tool: `irpanoview-align` — stop host first; keys 1-4 select cam, arrows shift px, s saves ~/position_shift.txt; RTSP preview same as host
+- Stitch offsets (2026-06): slot1 +17/+3, slot2 0/0, slot3 -23/+2, slot4 -33/+3 — ~/position_shift.txt; host auto-loads at start
+- Overlap radiometric equalization: continuous EMA on seam mean u16 delta (anchor slot 2); `--no-equalization` / `--eq-alpha`
+- Eq sample JPGs: `irpanoview-eq-samples --out ~/eq-samples --wait 5` — all cams, overlap eq + shared Jet window, saves `{serial}.jpg`; stop host first
+- PTGUI warp stitch: bake `py -3 tools/stitch/bake_warp_from_pts.py "eq-samples/EA6462986 Panorama.pts" --images eq-samples --layers eq-samples/take2 --from-proof eq-samples/take2/proof2 --seam ptgui_blend --proof eq-samples/take2/proof3 --out stitch-calib`. Proof1 (old shift/distort): `take2/proof/`. Proof2 (pixel_pano + panotools shift, geometric hard-winner seam): `take2/proof2/` — pano MAD **6.4px**. Proof3 (proof2 geometry + `ptgui_blend` seam weights): `take2/proof3/` — pano MAD **6.37px**, seam-band MAD **6.6->6.2px** vs proof2.
+- `--seam ptgui_blend` (default): `derive_ptgui_weights()` solves `blend=wA*A+(1-wA)*B` per pano pixel from take2 layer JPGs (1-cover->1, 2-cover->LSQ fit clamp[0,1] w/ degenerate guard dd<12 -> geometric winner, >=3 cover -> nearest-to-blend). Matches PTGUI's narrow cut+feather.
+- `--seam feather`: `derive_feather_weights()` = distance-transform gradient cross-fade. w_i = dist_to_own_footprint_edge, normalized across covering cams -> smooth ramp over the FULL overlap band (not a hard cut). Use this to soften live brightness steps between cameras. proof4 = `take2/proof4/`.
+- `--seam geometric` = old argmax(z) hard winner. Geometry (src_x/src_y) is identical across all seam modes (proof2 convention). **Bake-only; Pi runtime + LUT format unchanged (blends fractional u8 weights).** NOTE: calib_hash ignores weights (hashes calib.json only) — verify deploys with `md5sum warp_lut.bin`.
+- Fractional weights now populate the feather band: `seam_masks.bin` = 4497 feather px (was empty with 0/1 weights); `eq_seam_samples.bin` seams 1202/1515/1556 pairs. `compare_proof_quads.py` prints pano + seam-band MAD across proofs.
+- Seam weights are tied to this `.pts` + 908x160 output + take2 layer export. If calibration changes, MUST re-run PTGUI layer export (`take2/*Panorama*.jpg`) and re-bake.
+- DEPLOY (2026-06-15): proof3 ptgui_blend deployed 18:42, then **feather seam deployed ~20:58** (warp_lut md5 072e552ac6c333f4d2b98898a25bb25d). Backups on Pi: `~/stitch-calib.bak` (pre-proof3) and `~/stitch-calib.proof3.bak` (proof3 ptgui_blend, warp_lut md5 7bb09e2aac6a05582b220c68694d6dbe).
+- Deploy steps: `pscp -i <ppk> stitch-calib\{calib.json,warp_lut.bin,seam_masks.bin,eq_seam_samples.bin,preview.jpg} ericj@192.168.8.115:/home/ericj/stitch-calib/`; stop host with `pkill -x irpanoview-host` (NOT `pkill -f irpanoview-host` — it self-matches the SSH shell argv and kills the session, exit 128, host survives); start with the `nohup ... irpanoview-host --meta-dest 192.168.8.142 --control-socket ~/run/irpanoview/control.sock --stitch-calib ~/stitch-calib --stitch-mode warp > ~/logs/host.log 2>&1 < /dev/null & disown`. Rollback to proof3: stop host, `rm -rf ~/stitch-calib && cp -a ~/stitch-calib.proof3.bak ~/stitch-calib`, restart.
+- Legacy offset stitch still works if no calib dir present (`~/position_shift.txt`)
+- Post-reboot 2026-06-14 21:54: slots 2+3 OK (83 bulk pkts, ~29-32 C); slot 4 open failed after sequential; bus 1/7 ghost (empty serial) skipped
+- Pre-reboot failure: eof_count=0, 5000+ pkts/sec flood — stale stream state; reboot + clean disarm fixes framing
+- irpanoview-host systemd service: REWORKED 2026-06-16 to run as **User=ericj** (NOT root — root grabbed USB & failed), warp stitch, binary=~/IRPanoView/pi/build/irpanoview-host, control sock /run/irpanoview (RuntimeDirectory), Restart=always + StartLimitIntervalSec=0 + ExecStartPre sleep 8 (retries forever while USB enumerates). Unit: pi/deploy/irpanoview-host.service. Enable on boot: `sudo bash ~/IRPanoView/pi/deploy/enable-host-boot.sh` (stops manual instance, installs, enable+start). Disable: `sudo systemctl disable --now irpanoview-host`. Logs: `journalctl -u irpanoview-host -f`. ericj is in video+plugdev groups so USB works under systemd. (NOT yet enabled — Eric runs the sudo script himself.)

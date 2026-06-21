@@ -1,0 +1,2 @@
+# Hik TM32 thermal cameras — permissions only (host is started manually for now)
+SUBSYSTEM=="usb", ATTR{idVendor}=="2bdf", ATTR{idProduct}=="0102", MODE="0666", TAG+="uaccess"

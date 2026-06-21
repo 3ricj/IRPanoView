@@ -1,0 +1,686 @@
+{
+	"$schema": "https://www.ptgui.com/schemas/project_v55.schema.json",
+	"contenttype": "com.ptgui.project_pro",
+	"software": "PTGui Pro 13.9",
+	"fileversion": 55,
+	"compatibleversion": 6,
+	"compatibleapplication": "PTGui 11",
+	"project_v1": {},
+	"project": {
+		"pathseparator": "\\",
+		"portraitcameraorientation": "counterclockwise",
+		"metadata": {
+			"resolution": 3e2,
+			"overridelatitude": null,
+			"overridelongitude": null,
+			"overridedirection": null
+		},
+		"outputcomponents": {
+			"hdrlayers": false,
+			"hdrblendplanes": false,
+			"hdrblended": true,
+			"ldrpanorama": false,
+			"ldrlayers": false,
+			"ldrblendplanes": false
+		},
+		"hdrsettings": {
+			"tonemappanorama": false,
+			"fileformat": "exr",
+			"tiffparams": {
+				"compression": "deflate",
+				"datatype": "f32",
+				"alphatype": "unassociated",
+				"jpegxlcompression": {
+					"quality": 95
+				}
+			},
+			"psdparams": {
+				"compression": "none",
+				"datatype": "f32",
+				"layermode": "layered"
+			},
+			"exrparams": {
+				"alphamode": "withalpha",
+				"bitdepth": "float",
+				"compression": "none",
+				"zipcompressionlevel": 4,
+				"dwacompressionlevel": 4.5e1
+			},
+			"dngparams": {
+				"datatype": "f16",
+				"withalpha": true,
+				"compression": "none",
+				"jpegxlcompression": {
+					"quality": 95
+				}
+			},
+			"tonemapsettings": {
+				"targetbrightness": 4.50000000000000011e-1,
+				"autoboost": true,
+				"boostshadows": 2e1,
+				"reducehighlights": 2e1,
+				"compression": 1.49999999999999994e-1
+			},
+			"exposurefusionsettings": {
+				"targetbrightness": 5e-1,
+				"boostshadows": 0,
+				"reducehighlights": 0,
+				"sigma": 2.00000000000000011e-1,
+				"algorithm": "default"
+			},
+			"hdrmethod": "truehdr",
+			"bracketedflow": "auto",
+			"noisefloor": 0,
+			"exposurefusesinglebrackets": false,
+			"precision": "float",
+			"hdrexposurereference": "averageexposure",
+			"hdrexposureoffset": 0,
+			"absoluteexposure": 0
+		},
+		"projectsettings": {
+			"alignsettings": {
+				"generatecp": true,
+				"optimize": true,
+				"roughlyalign": true,
+				"straighten": true,
+				"fit": true,
+				"chooseprojection": true,
+				"optimizeexposure": true,
+				"optimizeexposureonlyifaligned": true,
+				"isprealigned": false,
+				"removenonadjacentcps": false
+			},
+			"templatesettings": {
+				"lens": true,
+				"imageparams": true,
+				"preservepanoramaorientation": false,
+				"mask": true,
+				"panoramasettings": true,
+				"projectsettings": true,
+				"optimizer": true,
+				"linkimages": "autodetect",
+				"cameracurve": "nonraw"
+			},
+			"batchstitchersettings": {
+				"align": false,
+				"stitch": true,
+				"stitchonlyifcontrolpoints": true
+			},
+			"defaultfilenaming": {
+				"defaultprojectfilenamemode": "sameassourceimage",
+				"defaultprojectfilenamecustom": " Panorama",
+				"defaultprojectfoldermode": "sameassourceimage",
+				"defaultprojectfoldercustom": "",
+				"defaultpanoramafilenamemode": "sameasproject",
+				"defaultpanoramafilenamecustom": "",
+				"defaultpanoramafoldermode": "sameasproject",
+				"defaultpanoramafoldercustom": "",
+				"userelativesourceimagepaths": true
+			},
+			"hdrsettings": {
+				"hdrlinkmode": "hdrlink",
+				"hdrlinkwithoutasking": false,
+				"hdraskmode": "ask"
+			},
+			"optimizeraskreinitialize": true,
+			"useexifforbatchbuilder": false,
+			"useexif": true,
+			"honorexiforientation": true,
+			"multilenscompositeimagesupport": "loadtwice",
+			"autosetpanoramato360equirect": true,
+			"useorientationsensordata": true
+		},
+		"outputsize": {
+			"mode": "relative",
+			"fractionofoptimumsize": 1
+		},
+		"previewsizerelative": 2.5e-1,
+		"blend": {
+			"seamfinding": true,
+			"seamfindingprecision": -3,
+			"engine": "zerooverlap",
+			"redmasktransparent": true,
+			"fillholes": false,
+			"maskpushseams": true
+		},
+		"hasbeenoptimized": true,
+		"autocpdone": true,
+		"simpleproject": false,
+		"templateapplied": false,
+		"panoramaparams": {
+			"outputfile": "",
+			"hfov": 1.9164576119184494e2,
+			"vfov": 3.28086106181144714e1,
+			"projection": "cylindrical",
+			"projectioncompression": {
+				"rectilinearx": 0,
+				"rectilineary": 0,
+				"cylindricaly": 0,
+				"transversecylindricalx": 0,
+				"vedutismox": 1,
+				"transversevedutismoy": 1,
+				"stereographic": 1,
+				"rectifisheye": 1
+			},
+			"interpolator": "default",
+			"fileformat": "jpeg",
+			"jpegparams": {
+				"quality": 95
+			},
+			"tiffparams": {
+				"compression": "deflate",
+				"datatype": "u8",
+				"alphatype": "unassociated",
+				"jpegxlcompression": {
+					"quality": 95
+				}
+			},
+			"psdparams": {
+				"compression": "packbits",
+				"datatype": "u8",
+				"layermode": "layered"
+			},
+			"qtvrparams": {
+				"windowsize": [800,600],
+				"cubesizeauto": true,
+				"cubesize": 1000,
+				"jpegquality": 70,
+				"includepreview": false,
+				"pan": {
+					"initial": 0,
+					"min": -1.8e2,
+					"max": 1.8e2
+				},
+				"tilt": {
+					"initial": 0,
+					"min": -9e1,
+					"max": 9e1
+				},
+				"fov": {
+					"initial": 9e1,
+					"min": 1e1,
+					"max": 1.2e2
+				},
+				"autolimits": true
+			},
+			"jpeg2000params": {
+				"datatype": "u8",
+				"withalpha": true,
+				"quality": 80
+			},
+			"dngparams": {
+				"datatype": "u16",
+				"withalpha": true,
+				"compression": "none",
+				"jpegxlcompression": {
+					"quality": 95
+				}
+			},
+			"outputcrop": [0,0,1,1],
+			"outputiccprofile": null,
+			"hdroutputiccprofile": null,
+			"useiccprofilefromsourceimages": true
+		},
+		"optimizer": {
+			"hvcpmode": "twopass",
+			"linkpitch": false,
+			"linkroll": false,
+			"simplemode": true,
+			"simplemodesettings": {
+				"optimizefov": true,
+				"optimizelens": "heavyplusshift",
+				"anchorimagegroup": 0,
+				"anchorimage": null
+			}
+		},
+		"globallenses": [
+			{
+				"lens": {
+					"params": {
+						"projection": "rectilinear",
+						"focallength": 3.25870756531847672,
+						"theoreticalfocallength": null,
+						"croprectanglesize": null,
+						"cropcenteroffset": {
+							"longside": 0,
+							"shortside": 0
+						},
+						"a": -1.9877013260669027e-2,
+						"b": 2.88706447745063766e-2,
+						"c": -4.58084017491385623e-2,
+						"sensordiagonal": 3.8400000000000003,
+						"mirrored": false
+					},
+					"optimizerflags": {
+						"fov": true,
+						"a": true,
+						"b": true,
+						"c": true,
+						"fisheyefactor": false
+					}
+				},
+				"shift": {
+					"params": {
+						"longside": 1.27339030275508275e-1,
+						"shortside": -1.42776003502694787e-1
+					},
+					"optimizerflags": {
+						"longside": true,
+						"shortside": true
+					}
+				},
+				"shear": {
+					"params": {
+						"hshear": 0,
+						"vshear": 0
+					},
+					"optimizerflags": {
+						"hshear": false,
+						"vshear": false
+					}
+				},
+				"photometric": {
+					"optimizevignetting": "yes",
+					"vignettingcoefficients": []
+				}
+			}
+		],
+		"globalcameracurves": [
+			{
+				"toning": {
+					"luminancecurve": {
+						"a": 2.54999999999999982,
+						"b": 5.99999999999999978e-1
+					},
+					"saturationfactor": 1
+				},
+				"optimize": "auto"
+			}
+		],
+		"photometric": {
+			"whitepoint": null,
+			"exposureoffset": 0,
+			"exposurecompensation": true,
+			"optimizeexposure": "auto",
+			"optimizewhitebalance": "no",
+			"optimizeflare": "no"
+		},
+		"preprocess": {
+			"noisereduction": {
+				"enabled": false,
+				"chroma": 3.19999992847442627e-1,
+				"luminance": 1.25000001862645149e-2
+			},
+			"caremoval": {
+				"enabled": false,
+				"amount": 6.0000002384185791e-1
+			},
+			"fringeremoval": {
+				"enabled": false,
+				"radius": 3
+			}
+		},
+		"postprocess": {
+			"toningfromlinear": {
+				"luminancecurve": {
+					"a": 2.54999999999999982,
+					"b": 5.99999999999999978e-1
+				},
+				"saturationfactor": 1
+			},
+			"additionaltoning": {
+				"luminancecurve": {
+					"a": 0,
+					"b": 0
+				},
+				"saturationfactor": 1
+			}
+		},
+		"imagegroups": [
+			{
+				"size": [256,192],
+				"individuallens": null,
+				"individualshift": null,
+				"individualshear": null,
+				"individualcropcenter": null,
+				"globallens": 0,
+				"viewrotate": "auto",
+				"blendweight": 1e2,
+				"position": {
+					"params": {
+						"yaw": -1.39078010955656737e1,
+						"pitch": 8.55362890485338312,
+						"roll": 3.48650918540440102,
+						"vpx": 0,
+						"vpy": 0,
+						"vpd": 0,
+						"vppan": 0,
+						"vptilt": 0
+					},
+					"optimizerflags": {
+						"yaw": false,
+						"pitch": false,
+						"roll": false,
+						"vp": "reset"
+					}
+				},
+				"maskbitmap": null,
+				"linkable": {
+					"position": {
+						"params": {
+							"yaw": -1.39078010955656737e1,
+							"pitch": 8.55362890485338312,
+							"roll": 3.48650918540440102,
+							"vpx": 0,
+							"vpy": 0,
+							"vpd": 0,
+							"vppan": 0,
+							"vptilt": 0
+						},
+						"optimizerflags": {
+							"yaw": false,
+							"pitch": false,
+							"roll": false,
+							"vp": "reset"
+						}
+					},
+					"maskbitmap": null
+				},
+				"images": [
+					{
+						"filename": "EA6462986.jpg",
+						"metadata": {
+							"aperture": null,
+							"exposuretime": null,
+							"iso": null,
+							"filetimestamp": 1781561106,
+							"filesize": 24010,
+							"wbmode": null,
+							"exposurebias": null,
+							"pixelformat": {
+								"datatype": "u8",
+								"channels": 3
+							},
+							"iccprofile": "9af965be0c3744bf56d71617b91c2a49"
+						},
+						"usecontrolpoints": true,
+						"include": true,
+						"includeinpreview": true,
+						"useforphotometric": true,
+						"photometric": {
+							"flare": 0,
+							"exposureoffset": 0,
+							"whitepoint": null,
+							"globalcameracurve": 0
+						},
+						"linkable": null,
+						"ispatch": false
+					}
+				]
+			},
+			{
+				"size": [256,192],
+				"individuallens": null,
+				"individualshift": null,
+				"individualshear": null,
+				"individualcropcenter": null,
+				"globallens": 0,
+				"viewrotate": "auto",
+				"blendweight": 1e2,
+				"position": {
+					"params": {
+						"yaw": 7.96362079722022145e1,
+						"pitch": 7.51061047352709465,
+						"roll": 4.56585583514169002e-1,
+						"vpx": 0,
+						"vpy": 0,
+						"vpd": 0,
+						"vppan": 0,
+						"vptilt": 0
+					},
+					"optimizerflags": {
+						"yaw": true,
+						"pitch": true,
+						"roll": true,
+						"vp": "reset"
+					}
+				},
+				"maskbitmap": null,
+				"linkable": {
+					"position": {
+						"params": {
+							"yaw": 7.96362079722022145e1,
+							"pitch": 7.51061047352709465,
+							"roll": 4.56585583514169002e-1,
+							"vpx": 0,
+							"vpy": 0,
+							"vpd": 0,
+							"vppan": 0,
+							"vptilt": 0
+						},
+						"optimizerflags": {
+							"yaw": true,
+							"pitch": true,
+							"roll": true,
+							"vp": "reset"
+						}
+					},
+					"maskbitmap": null
+				},
+				"images": [
+					{
+						"filename": "EA6473497.jpg",
+						"metadata": {
+							"aperture": null,
+							"exposuretime": null,
+							"iso": null,
+							"filetimestamp": 1781561106,
+							"filesize": 22937,
+							"wbmode": null,
+							"exposurebias": null,
+							"pixelformat": {
+								"datatype": "u8",
+								"channels": 3
+							},
+							"iccprofile": "9af965be0c3744bf56d71617b91c2a49"
+						},
+						"usecontrolpoints": true,
+						"include": true,
+						"includeinpreview": true,
+						"useforphotometric": true,
+						"photometric": {
+							"flare": 0,
+							"exposureoffset": 0,
+							"whitepoint": null,
+							"globalcameracurve": 0
+						},
+						"linkable": null,
+						"ispatch": false
+					}
+				]
+			},
+			{
+				"size": [256,192],
+				"individuallens": null,
+				"individualshift": null,
+				"individualshear": null,
+				"individualcropcenter": null,
+				"globallens": 0,
+				"viewrotate": "auto",
+				"blendweight": 1e2,
+				"position": {
+					"params": {
+						"yaw": -6.21043462842206964e1,
+						"pitch": 9.8261578754897414,
+						"roll": 2.32337872984584237,
+						"vpx": 0,
+						"vpy": 0,
+						"vpd": 0,
+						"vppan": 0,
+						"vptilt": 0
+					},
+					"optimizerflags": {
+						"yaw": true,
+						"pitch": true,
+						"roll": true,
+						"vp": "reset"
+					}
+				},
+				"maskbitmap": null,
+				"linkable": {
+					"position": {
+						"params": {
+							"yaw": -6.21043462842206964e1,
+							"pitch": 9.8261578754897414,
+							"roll": 2.32337872984584237,
+							"vpx": 0,
+							"vpy": 0,
+							"vpd": 0,
+							"vppan": 0,
+							"vptilt": 0
+						},
+						"optimizerflags": {
+							"yaw": true,
+							"pitch": true,
+							"roll": true,
+							"vp": "reset"
+						}
+					},
+					"maskbitmap": null
+				},
+				"images": [
+					{
+						"filename": "EA6744407.jpg",
+						"metadata": {
+							"aperture": null,
+							"exposuretime": null,
+							"iso": null,
+							"filetimestamp": 1781561106,
+							"filesize": 28460,
+							"wbmode": null,
+							"exposurebias": null,
+							"pixelformat": {
+								"datatype": "u8",
+								"channels": 3
+							},
+							"iccprofile": "9af965be0c3744bf56d71617b91c2a49"
+						},
+						"usecontrolpoints": true,
+						"include": true,
+						"includeinpreview": true,
+						"useforphotometric": true,
+						"photometric": {
+							"flare": 0,
+							"exposureoffset": 0,
+							"whitepoint": null,
+							"globalcameracurve": 0
+						},
+						"linkable": null,
+						"ispatch": false
+					}
+				]
+			},
+			{
+				"size": [256,192],
+				"individuallens": null,
+				"individualshift": null,
+				"individualshear": null,
+				"individualcropcenter": null,
+				"globallens": 0,
+				"viewrotate": "auto",
+				"blendweight": 1e2,
+				"position": {
+					"params": {
+						"yaw": 3.10740371382202909e1,
+						"pitch": 6.94368544516072461,
+						"roll": 2.22002982591746445,
+						"vpx": 0,
+						"vpy": 0,
+						"vpd": 0,
+						"vppan": 0,
+						"vptilt": 0
+					},
+					"optimizerflags": {
+						"yaw": true,
+						"pitch": true,
+						"roll": true,
+						"vp": "reset"
+					}
+				},
+				"maskbitmap": null,
+				"linkable": {
+					"position": {
+						"params": {
+							"yaw": 3.10740371382202909e1,
+							"pitch": 6.94368544516072461,
+							"roll": 2.22002982591746445,
+							"vpx": 0,
+							"vpy": 0,
+							"vpd": 0,
+							"vppan": 0,
+							"vptilt": 0
+						},
+						"optimizerflags": {
+							"yaw": true,
+							"pitch": true,
+							"roll": true,
+							"vp": "reset"
+						}
+					},
+					"maskbitmap": null
+				},
+				"images": [
+					{
+						"filename": "EA6744502.jpg",
+						"metadata": {
+							"aperture": null,
+							"exposuretime": null,
+							"iso": null,
+							"filetimestamp": 1781561106,
+							"filesize": 23954,
+							"wbmode": null,
+							"exposurebias": null,
+							"pixelformat": {
+								"datatype": "u8",
+								"channels": 3
+							},
+							"iccprofile": "9af965be0c3744bf56d71617b91c2a49"
+						},
+						"usecontrolpoints": true,
+						"include": true,
+						"includeinpreview": true,
+						"useforphotometric": true,
+						"photometric": {
+							"flare": 0,
+							"exposureoffset": 0,
+							"whitepoint": null,
+							"globalcameracurve": 0
+						},
+						"linkable": null,
+						"ispatch": false
+					}
+				]
+			}
+		],
+		"controlpoints": [
+			{"t":0,"0":[0,0,233,145],"1":[3,0,12,145]},
+			{"t":0,"0":[0,0,244,66],"1":[3,0,21,66]},
+			{"t":0,"0":[0,0,245,154],"1":[3,0,22,154]},
+			{"t":0,"0":[2,0,239,175],"1":[0,0,8,178]},
+			{"t":0,"0":[2,0,248,111],"1":[0,0,10,115]},
+			{"t":0,"0":[3,0,242,152],"1":[1,0,3,156]},
+			{"t":0,"0":[3,0,253,157],"1":[1,0,15,162]},
+			{"t":0,"0":[3,0,247,117],"1":[1,0,6,121]},
+			{"t":0,"0":[2,0,245,69],"1":[0,0,8,71]}
+		]
+	},
+	"assets": [
+		{
+			"id": "9af965be0c3744bf56d71617b91c2a49",
+			"contenttype": "application/vnd.iccprofile",
+			"size": 644,
+			"encodedsize": 860,
+			"data": "AAAChAAAAAAEQAAAbW50clJHQiBYWVogB+cAAQABAAAAAAAAYWNzcEFQUEwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPbWAAEAAAAA0y0AAAAA1UirIG2/dU0vyLj42yymGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAALZGVzYwAAAQgAAAAkY3BydAAAASwAAABYclRSQwAAAYQAAAAgZ1RSQwAAAaQAAAAgYlRSQwAAAcQAAAAgclhZWgAAAeQAAAAUZ1hZWgAAAfgAAAAUYlhZWgAAAgwAAAAUY2hybQAAAiAAAAAkY2hhZAAAAkQAAAAsd3RwdAAAAnAAAAAUbWx1YwAAAAAAAAABAAAADGVuVVMAAAAIAAAAHABzAFIARwBCbWx1YwAAAAAAAAABAAAADGVuVVMAAAA8AAAAHABJAEMAQwAgAHAAcgBvAGYAaQBsAGUAIABnAGUAbgBlAHIAYQB0AGUAZAAgAGIAeQAgAFAAVABHAHUAaXBhcmEAAAAAAAMAAAACZmYAAPKnAAANWQAAE9AAAApbcGFyYQAAAAAAAwAAAAJmZgAA8qcAAA1ZAAAT0AAACltwYXJhAAAAAAADAAAAAmZmAADypwAADVkAABPQAAAKW1hZWiAAAAAAAABvnwAAOPQAAAORWFlaIAAAAAAAAGKWAAC3hwAAGNtYWVogAAAAAAAAJKAAAA+EAAC2zmNocm0AAAAAAAMAAAAAo9cAAFR7AABMzQAAmZoAACZmAAAPXHNmMzIAAAAAAAEMQAAABd3///MpAAAHkgAA/ZD///ui///9ogAAA9oAAMCCWFlaIAAAAAAAAPbWAAEAAAAA0zo="
+		}
+	]
+}

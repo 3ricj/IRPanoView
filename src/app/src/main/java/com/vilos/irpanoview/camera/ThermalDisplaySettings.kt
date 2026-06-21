@@ -35,7 +35,6 @@ object ThermalDisplaySettings {
         if (floor == floorCelsius && ceiling == ceilingCelsius) return
         floorCelsius = floor
         ceilingCelsius = ceiling
-        ThermalLevelRegistry.onDisplayRangeChanged(floor, ceiling)
     }
 
     fun hikDynamicWindowPolicy(): HikFrameDecoder.DynamicWindowPolicy =

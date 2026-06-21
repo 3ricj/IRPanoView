@@ -2,15 +2,9 @@ package com.vilos.irpanoview.camera.hik
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
-import org.junit.Before
 import org.junit.Test
 
 class HikUvcWireLayoutTest {
-
-    @Before
-    fun resetGridTuning() {
-        HikGridDecodeTuning.set(0, 0)
-    }
 
     @Test
     fun readRadioRaw16_macropixelRoundTrip() {

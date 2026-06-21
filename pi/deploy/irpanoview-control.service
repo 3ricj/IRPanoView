@@ -1,0 +1,15 @@
+[Unit]
+Description=IRPanoView WebSocket control server
+After=irpanoview-host.service
+Requires=irpanoview-host.service
+
+[Service]
+Type=simple
+Environment=IRPV_CONTROL_DIR=/run/irpanoview
+Environment=IRPV_WS_PORT=8766
+ExecStart=/usr/bin/python3 /opt/irpanoview/control_server.py
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

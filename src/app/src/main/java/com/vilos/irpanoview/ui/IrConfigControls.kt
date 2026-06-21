@@ -39,7 +39,7 @@ fun IrConfigControls(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            "Pushed to every active camera via setIrConfig (0x7EF). " +
+            "Pushed to the Pi for all cameras via WebSocket set_ir_config. " +
                 "Affects radiometric accuracy for the scene, not display scaling.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

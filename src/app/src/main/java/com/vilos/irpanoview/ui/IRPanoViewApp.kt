@@ -11,17 +11,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.vilos.irpanoview.BuildConfig
-import com.vilos.irpanoview.GracefulShutdown
-import com.vilos.irpanoview.camera.hik.HikShutdownExperiment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -35,9 +30,9 @@ fun IRPanoViewApp(
     vm: IRPanoViewViewModel = viewModel(),
 ) {
     val state by vm.uiState.collectAsStateWithLifecycle()
+    val piStatus by vm.piStatus.collectAsStateWithLifecycle()
+    val streamStats by vm.streamStats.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
-    val context = LocalContext.current
-    val exitRecipe = HikShutdownExperiment.activeRecipeState
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -53,11 +48,7 @@ fun IRPanoViewApp(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    TextButton(onClick = { GracefulShutdown.request(context, "user exit") }) {
-                        Text("Exit ${exitRecipe.id}·${BuildConfig.SHUTDOWN_BUILD_STAMP}")
-                    }
-                },
+                title = { Text("IRPanoView") },
                 actions = {
                     IconButton(onClick = { vm.setSettingsOpen(true) }) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
@@ -72,18 +63,24 @@ fun IRPanoViewApp(
                 .padding(inner)
                 .padding(horizontal = 4.dp, vertical = 4.dp),
         ) {
-            AdaptiveCameraGrid(
-                slots = state.slots,
-                palette = state.palette,
-                debugStatsEnabled = state.debugStatsEnabled,
-                focusedStableKey = state.focusedStableKey,
+            ConnectionBanner(
+                piHost = state.piHost,
+                piStatus = piStatus,
+                streamStats = streamStats,
+                demoMode = state.demoMode,
+                onConnect = vm::connectPi,
+                onDisconnect = vm::disconnectPi,
+            )
+            PanoStreamView(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
-                onClickSlot = vm::toggleFocusOn,
+                onViewReady = vm::attachPanoView,
             )
             ThermalScaleBar(
                 palette = state.palette,
+                windowMinC = state.windowMinC,
+                windowMaxC = state.windowMaxC,
                 modifier = Modifier.fillMaxWidth(),
             )
         }

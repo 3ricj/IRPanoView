@@ -1,6 +1,5 @@
 package com.vilos.irpanoview.model
 
-import com.vilos.irpanoview.camera.hik.HikMultiCamPolicy
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -23,23 +22,12 @@ class QuadCameraOrderTest {
     }
 
     @Test
-    fun sortsBusPathsByCameraOrder() {
-        val paths = HikMultiCamPolicy.sortedBusPathsByCameraOrder(
-            listOf(
-                "/dev/bus/usb/001/025" to "EA6744502",
-                "/dev/bus/usb/001/016" to "EA6473497",
-                "/dev/bus/usb/001/024" to "EA6744407",
-                "/dev/bus/usb/001/018" to "EA6744486",
-            ),
-        )
+    fun sortsSerialsByCameraOrder() {
+        val serials = listOf("EA6744486", "EA6744502", "EA6473497", "EA6744407")
+            .sortedBy { QuadCameraOrder.sortKey(it) }
         assertEquals(
-            listOf(
-                "/dev/bus/usb/001/025",
-                "/dev/bus/usb/001/016",
-                "/dev/bus/usb/001/024",
-                "/dev/bus/usb/001/018",
-            ),
-            paths,
+            listOf("EA6744502", "EA6473497", "EA6744407", "EA6744486"),
+            serials,
         )
     }
 }

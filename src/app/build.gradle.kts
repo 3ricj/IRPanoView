@@ -8,8 +8,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-val hikNativeUsb = (project.findProperty("hikNativeUsb") as String?)?.toBoolean() ?: false
-val hikUvcEofFraming = (project.findProperty("hikUvcEofFraming") as String?)?.toBoolean() ?: true
 val shutdownBuildStamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
 val buildArchiveDescriptionRaw = ((project.findProperty("buildDescription") as String?) ?: "debug").trim()
 val buildArchiveDescription = buildArchiveDescriptionRaw
@@ -21,30 +19,17 @@ val buildsArchiveRoot = rootProject.layout.projectDirectory.dir("builds").asFile
 android {
     namespace = "com.vilos.irpanoview"
     compileSdk = 35
-    ndkVersion = "27.0.12077973"
 
     defaultConfig {
         applicationId = "com.vilos.irpanoview"
         minSdk = 28
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
-        val hikEnhanceProfile = (project.findProperty("hikEnhanceProfile") as String?) ?: "baseline"
-        buildConfigField("String", "HIK_ENHANCE_PROFILE", "\"$hikEnhanceProfile\"")
-        buildConfigField("boolean", "HIK_NATIVE_USB", "$hikNativeUsb")
-        buildConfigField("boolean", "HIK_UVC_EOF_FRAMING", "$hikUvcEofFraming")
+        versionCode = 2
+        versionName = "0.2.0"
         buildConfigField("String", "SHUTDOWN_BUILD_STAMP", "\"$shutdownBuildStamp\"")
-        if (hikNativeUsb) {
-            externalNativeBuild {
-                cmake {
-                    cppFlags += "-std=c++17"
-                    arguments += listOf("-DANDROID_STL=c++_shared")
-                }
-            }
-            ndk {
-                abiFilters += listOf("arm64-v8a")
-            }
-        }
+        buildConfigField("String", "PI_HOST", "\"irpanoview.local\"")
+        buildConfigField("int", "UDP_PORT", "8765")
+        buildConfigField("int", "WS_PORT", "8766")
     }
     buildTypes {
         release {
@@ -64,13 +49,6 @@ android {
         compose = true
         buildConfig = true
     }
-    if (hikNativeUsb) {
-        externalNativeBuild {
-            cmake {
-                path = file("src/main/cpp/CMakeLists.txt")
-            }
-        }
-    }
     packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
 }
 
@@ -88,8 +66,7 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
-    // Direct UVC when OEM has no Camera2 external provider (e.g. Lenovo TB-Q706F).
-    implementation("com.herohan:UVCAndroid:1.0.12")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
 }
