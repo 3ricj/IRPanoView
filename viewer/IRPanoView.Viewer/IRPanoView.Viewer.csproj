@@ -5,6 +5,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RootNamespace>IRPanoView.Viewer</RootNamespace>
     <AssemblyName>IRPanoView.Viewer</AssemblyName>
   </PropertyGroup>

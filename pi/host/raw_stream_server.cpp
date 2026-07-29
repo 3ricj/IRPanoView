@@ -4,6 +4,7 @@
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -47,11 +48,16 @@ bool RawStreamServer::start(uint16_t port) {
 
     running_ = true;
     accept_thread_ = std::thread(&RawStreamServer::acceptLoop, this);
+    send_thread_ = std::thread(&RawStreamServer::sendLoop, this);
     return true;
 }
 
 void RawStreamServer::stop() {
     running_ = false;
+    {
+        std::lock_guard<std::mutex> lock(pending_mutex_);
+        pending_cv_.notify_all();
+    }
     if (listen_fd_ >= 0) {
         shutdown(listen_fd_, SHUT_RDWR);
         close(listen_fd_);
@@ -63,6 +69,14 @@ void RawStreamServer::stop() {
     }
     if (accept_thread_.joinable()) {
         accept_thread_.join();
+    }
+    if (send_thread_.joinable()) {
+        send_thread_.join();
+    }
+    {
+        std::lock_guard<std::mutex> lock(pending_mutex_);
+        pending_.clear();
+        has_pending_ = false;
     }
     has_client_ = false;
 }
@@ -89,6 +103,11 @@ void RawStreamServer::acceptLoop() {
         if (fd < 0) {
             continue;
         }
+        int one = 1;
+        setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
+        // Larger send buffer reduces short stalls; still drop via queueLatestFrame.
+        int snd = 256 * 1024;
+        setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &snd, sizeof(snd));
         std::lock_guard<std::mutex> lock(client_mutex_);
         closeClientLocked();
         client_fd_ = fd;
@@ -101,7 +120,22 @@ bool RawStreamServer::sendFrame(const std::vector<uint8_t>& irpv_packet) {
         return false;
     }
     std::lock_guard<std::mutex> lock(client_mutex_);
-    if (client_fd_ < 0) {
+    return sendFrameLocked(irpv_packet);
+}
+
+bool RawStreamServer::queueLatestFrame(std::vector<uint8_t> packet) {
+    if (packet.empty() || !has_client_) {
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(pending_mutex_);
+    pending_ = std::move(packet);
+    has_pending_ = true;
+    pending_cv_.notify_one();
+    return true;
+}
+
+bool RawStreamServer::sendFrameLocked(const std::vector<uint8_t>& irpv_packet) {
+    if (client_fd_ < 0 || irpv_packet.empty()) {
         return false;
     }
 
@@ -127,6 +161,30 @@ bool RawStreamServer::sendFrame(const std::vector<uint8_t>& irpv_packet) {
         sent += static_cast<size_t>(rc);
     }
     return true;
+}
+
+void RawStreamServer::sendLoop() {
+    while (running_) {
+        std::vector<uint8_t> packet;
+        {
+            std::unique_lock<std::mutex> lock(pending_mutex_);
+            pending_cv_.wait_for(lock, std::chrono::milliseconds(200), [this] {
+                return !running_ || has_pending_;
+            });
+            if (!running_) {
+                break;
+            }
+            if (!has_pending_) {
+                continue;
+            }
+            packet.swap(pending_);
+            has_pending_ = false;
+        }
+        if (!packet.empty()) {
+            std::lock_guard<std::mutex> lock(client_mutex_);
+            sendFrameLocked(packet);
+        }
+    }
 }
 
 } // namespace irpv

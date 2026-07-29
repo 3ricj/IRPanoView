@@ -1,9 +1,39 @@
-# IRPanoView networking (2026-06)
+# IRPanoView networking (2026-06 .. 2026-07)
 
-## Current: shared WiFi AP
-- Phone + Pi on the **same router/AP** (not Pi hotspot yet)
+## CURRENT (2026-07-28): Pi dual-homed + ETHERNET BACKDOOR
+- **ETHERNET BACKDOOR for agent: `10.254.254.1` (eth0)** — dev machine reaches it while ALSO online in Cursor. This is the way to live-SSH/probe now. Same ed25519 key, pin with `-hostkey SHA256:hLOUKA3WIgnwU9P5DBIrnuzEavrpQNwedEIHSmXER5A`.
+- Pi also runs its OWN AP (wlan0 = **192.168.4.1**, SSID **IrPanoView**/**IRPanoView**, WPA2). Was earlier attempting dual-home as client to "raptor" shared AP too.
+- Note: earlier-reported 192.168.64.147 was NOT routable from this dev box (went through a virtual gateway 192.168.65.252 -> "destination host unreachable"). Use 10.254.254.1 backdoor instead.
+- **Viewer "Pi host" field**: use `10.254.254.1` for wired testing from dev box, or `192.168.4.1` on the Pi AP. Ports: RTSP 8554, raw TCP 8767, meta UDP 8768, WS 8766.
+- OLD "no frames" BUG — **RESOLVED & VERIFIED 2026-07-28**: rebuilt viewer + ran `--probe-raw --host 10.254.254.1` end-to-end — C# client pulled frames from ALL 4 cams, zlib-inflated, decoded sane temps (~28-32C). Root cause was wrong IP / flaky link, NOT code. Raw server binds 0.0.0.0:8767 (backlog 1, single-client), RTSP 0.0.0.0:8554.
+- 4 cams present now (slot4 EA6473497 returned): cam1 EA6744407, cam2 EA6462986, cam3 EA6744502, cam4 EA6473497.
+- NOTE: 10.254.254.1 ethernet backdoor can flap briefly; if ping/SSH times out, just retry — it recovers.
+- MEASURED 2026-07-28 (raw TCP 8767, 3 cams present): ~1 fps/cam (the 1Hz cap), ~35 KB/cam frame compressed (96KB raw tile -> ~36%). Full-rate projection: 25fps x 4cam x 35KB ~= 3.5 MB/s ~= ~28 Mbps (needs ethernet or 5GHz/n; NOT the 2.4GHz `g` Pi AP in hostapd.conf).
+
+## Live view vs raw (2026-07-28)
+- FIRST ORDER: clean merged pano live view. Windows MainForm restored to **RTSP stitched Jet pano** (`rtsp://<host>:8554/thermal`) via RtspThermalReceiver (~25 fps). Default Pi host in UI = **10.254.254.1** (ethernet backdoor).
+- Per-camera raw TCP 8767 is OPTIONAL — only started when user hits **Record raw** (post-stitch capture). Not used for live display.
+- Quad view (CameraQuadRenderer) remains in tree but is not the primary UI.
+- Raw emit still capped at 1 Hz on Pi (fine for recording). Do NOT raise raw fps just to "fix" live view — live view is RTSP.
+
+## Client crash hardening (2026-07-28)
+- RtspThermalReceiver: TCP preflight (1.5s) before LibVLC; Stop() async (MediaPlayer.Stop hangs when RTSP wedged); video callbacks swallow exceptions.
+- LibVLC native init fix: "Failed to perform instanciation on the native side" was from stuffing RTSP/caching flags into `new LibVLC(...)` ctor (libvlc_new returned null). Now: Core.Initialize(explicit libvlc/win-x64 path once); ctor only `--no-audio/--quiet`; caching/rtsp-tcp on Media options.
+- MainForm: try/catch connect/disconnect/render; auto-disconnect after 8s no frames; taller status for full errors.
+- Program: ThreadException + UnhandledException MessageBox.
+- Symptom: ~5s live-view lag. Cause: RtspPublisher::pushNv12Frame queued a NEW PushJob on the GLib loop every compositor tick with NO drop — if encoder/GLib lagged, backlog = seconds.
+- Fix (pi/host/rtsp_publisher.{h,cpp}): latest-only pending frame + single scheduled idle; appsrc max-buffers=1; IDR every 5 frames. ALSO client LibVLC: media-level `:rtsp-tcp`, `:network-caching=50`, drop-late/skip-frames.
+- DEPLOYED 2026-07-28 to Pi via 10.254.254.1: rebuilt+restarted (pid new). Verified binary strings max-buffers=1 / h264_i_frame_period=5 + drainLatestFrameOnContext symbol. 4/4 cams up, RTSP 8554 listening.
+- BUILD GOTCHA: Pi clock stuck at ~2026-04-15 (no NTP/sudo). Clock skew left stale **libirpv_host.a** (Jun 16) while .o was new — link kept old RTSP code. Fix: `rm -f libirpv_host.a irpanoview-host` then rebuild. Fix Pi clock later.
+- SMALL LATENCY SET (2026-07-28, TCP only — NOT UDP): baseline profile + video_gop_size=5 + repeat_sequence_header=1 + config-interval=-1 + mtu=1200 + aggregate-mode=zero-latency; client :rtsp-tcp + caching=20. Deployed+host restarted. UDP was mis-started then aborted per Eric.
+- RAW U8 LIVE PREVIEW (2026-07-28): primary live view is now **TCP 8769** IRPR+IRP8 windowed u8 pano (~142KB/frame @25fps). No H.264/LibVLC. Client PreviewStreamClient applies Jet. RTSP 8554 still runs if something connects; MainForm uses preview port. `--preview-tcp-port` (default 8769).
+- FPS fix: client was ~13fps because per-pixel Jet+Marshal stalled TCP and blocked compositor. Fixed with unsafe LUT blit + Pi `queueLatestFrame` (async latest-only send thread) so compose never waits on TCP.
+- **12.2 fps root cause (2026-07-28)**: NOT stitch. Stage timing: eq~1ms stitch~3ms tick~76ms. Tick spent rebuilding 4 zlib raw tiles every compose frame because `last_raw_emit_us_` only advanced on successful send — with no raw client on 8767, raw_due stayed true forever. Fix: always advance emit clock; only build/send when `raw_server_.hasClient()`. Also integerized warp bilinear (stitch was already cheap after that).
+- **VERIFIED 2026-07-28 evening**: live U8 preview on 8769 = **25 fps stable, low latency** (Pi localhost probe + Eric on Windows viewer).
+
+## Legacy: shared WiFi AP (pre-2026-07)
+- Phone + Pi on the **same router/AP**
 - Android Pi host default: **irpanoview.local** (mDNS) — or set LAN IP in Settings
-- RTSP **8554** (live H.264 Jet), raw TCP **8767**, meta UDP **8768**, WebSocket **8766**
 - Pi streams UDP broadcast on subnet; AP must allow device-to-device (disable "client isolation" if connect fails)
 
 ## Pi SSH access

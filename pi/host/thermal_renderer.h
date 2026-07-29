@@ -25,6 +25,16 @@ public:
         int height,
         std::vector<uint8_t>& nv12_out);
 
+    // Windowed 0..255 display map (no colormap). Client applies Jet/etc.
+    bool renderDisplayU8(
+        const uint16_t* pano,
+        size_t pixel_count,
+        int width,
+        int height,
+        std::vector<uint8_t>& u8_out,
+        double& out_min_c,
+        double& out_max_c);
+
     // RGB888 row-major; shared min/max_c keeps colormap consistent across tiles.
     bool renderJetRgb(
         const uint16_t* pixels,

@@ -20,6 +20,7 @@ struct HostConfig {
     std::string meta_dest = "255.255.255.255";
     uint16_t meta_port = kDefaultMetaUdpPort;
     uint16_t raw_tcp_port = kDefaultRawTcpPort;
+    uint16_t preview_tcp_port = kDefaultPreviewTcpPort;
     uint16_t rtsp_port = kDefaultRtspPort;
     uint16_t control_port = kDefaultWsPort;
     std::string control_socket = "/run/irpanoview/control.sock";
@@ -48,6 +49,7 @@ struct LatencyStats {
     uint32_t raw_dropped_ticks = 0;
     int encoder_queue_bytes = 0;
     bool raw_client_connected = false;
+    bool preview_client_connected = false;
 };
 
 class HostState {
@@ -73,6 +75,7 @@ private:
     hik::HikHostOrchestrator orchestrator_;
     hik::PanoCompositor compositor_;
     RawStreamServer raw_server_;
+    RawStreamServer preview_server_;
     MetaStreamSender meta_sender_;
     ThermalRenderer renderer_;
     RtspPublisher rtsp_;
@@ -82,8 +85,11 @@ private:
     LatencyStats stats_;
 
     std::vector<uint8_t> nv12_buf_;
+    std::vector<uint8_t> preview_u8_buf_;
+    std::vector<uint8_t> preview_packet_;
     uint32_t video_seq_ = 0;
     uint32_t raw_seq_ = 0;
+    uint32_t preview_seq_ = 0;
     uint64_t last_raw_emit_us_ = 0;
     uint32_t raw_dropped_ticks_ = 0;
 };

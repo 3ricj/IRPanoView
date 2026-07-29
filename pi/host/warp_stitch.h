@@ -31,8 +31,6 @@ public:
     static uint16_t bilinearSample(const uint16_t* tile, int32_t x_q8, int32_t y_q8);
 
 private:
-    static uint16_t tileMeanU16(const uint16_t* tile, size_t count);
-
     PanoGeometry geometry_{};
     bool loaded_ = false;
     std::vector<std::string> serials_;

@@ -176,6 +176,43 @@ bool ThermalRenderer::renderJetNv12(
     return true;
 }
 
+bool ThermalRenderer::renderDisplayU8(
+    const uint16_t* pano,
+    size_t pixel_count,
+    int width,
+    int height,
+    std::vector<uint8_t>& u8_out,
+    double& out_min_c,
+    double& out_max_c) {
+    if (width <= 0 || height <= 0 || !pano) {
+        return false;
+    }
+    const size_t expected = static_cast<size_t>(width) * static_cast<size_t>(height);
+    if (pixel_count < expected) {
+        return false;
+    }
+
+    static int frame_counter = 0;
+    static double cached_min = 20.0;
+    static double cached_max = 40.0;
+    if ((frame_counter++ % kWindowRefreshFrames) == 0) {
+        resolveWindow(pano, expected, cached_min, cached_max);
+    }
+    out_min_c = cached_min;
+    out_max_c = cached_max;
+    const double span = std::max(cached_max - cached_min, 1e-6);
+
+    u8_out.resize(expected);
+    for (size_t i = 0; i < expected; ++i) {
+        const double c = celsiusFromRaw(pano[i]);
+        u8_out[i] = static_cast<uint8_t>(std::clamp(
+            static_cast<int>(std::lround(((c - cached_min) / span) * 255.0)),
+            0,
+            255));
+    }
+    return true;
+}
+
 bool ThermalRenderer::renderJetRgb(
     const uint16_t* pixels,
     int width,

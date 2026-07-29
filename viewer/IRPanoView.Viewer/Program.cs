@@ -40,6 +40,35 @@ internal static class Program
         }
 
         ApplicationConfiguration.Initialize();
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+        Application.ThreadException += (_, e) =>
+        {
+            try
+            {
+                MessageBox.Show(
+                    e.Exception.Message,
+                    "IRPanoView — UI error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+            catch
+            {
+                // ignore
+            }
+        };
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            try
+            {
+                var msg = (e.ExceptionObject as Exception)?.Message ?? e.ExceptionObject?.ToString() ?? "unknown";
+                MessageBox.Show(msg, "IRPanoView — fatal error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            catch
+            {
+                // ignore
+            }
+        };
+
         Application.Run(new MainForm());
         return 0;
     }

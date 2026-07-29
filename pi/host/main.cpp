@@ -20,7 +20,7 @@ void onSignal(int) {
 void printUsage(const char* argv0) {
     std::cerr << "Usage: " << argv0
               << " [--demo] [--meta-dest IP] [--meta-port N] [--raw-tcp-port N]"
-              << " [--rtsp-port N] [--control-socket PATH] [--offset-file PATH]"
+              << " [--preview-tcp-port N] [--rtsp-port N] [--control-socket PATH] [--offset-file PATH]"
               << " [--stitch-calib DIR] [--stitch-mode auto|warp|offset|edge]"
               << " [--no-equalization] [--eq-alpha N]\n";
 }
@@ -38,6 +38,8 @@ int main(int argc, char** argv) {
             config.meta_port = static_cast<uint16_t>(std::stoi(argv[++i]));
         } else if (std::strcmp(argv[i], "--raw-tcp-port") == 0 && i + 1 < argc) {
             config.raw_tcp_port = static_cast<uint16_t>(std::stoi(argv[++i]));
+        } else if (std::strcmp(argv[i], "--preview-tcp-port") == 0 && i + 1 < argc) {
+            config.preview_tcp_port = static_cast<uint16_t>(std::stoi(argv[++i]));
         } else if (std::strcmp(argv[i], "--rtsp-port") == 0 && i + 1 < argc) {
             config.rtsp_port = static_cast<uint16_t>(std::stoi(argv[++i]));
         } else if (std::strcmp(argv[i], "--control-socket") == 0 && i + 1 < argc) {

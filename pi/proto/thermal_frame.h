@@ -17,6 +17,23 @@ inline constexpr uint8_t kFlagPayloadDeflate = 0x08; // payload is zlib-deflated
 inline constexpr uint16_t kDefaultRawTcpPort = 8767;
 inline constexpr uint16_t kDefaultMetaUdpPort = 8768;
 inline constexpr uint16_t kDefaultRtspPort = 8554;
+inline constexpr uint16_t kDefaultPreviewTcpPort = 8769;
+
+// Preview stream payload magic (inside IRPR length-framed packet).
+inline constexpr uint32_t kPreviewMagic = 0x38505249u; // "IRP8"
+
+#pragma pack(push, 1)
+struct PreviewFrameHeader {
+    uint32_t magic;       // kPreviewMagic
+    uint16_t width;
+    uint16_t height;
+    uint32_t sequence;
+    uint64_t timestamp_us;
+    float min_c;
+    float max_c;
+};
+#pragma pack(pop)
+static_assert(sizeof(PreviewFrameHeader) == 28, "preview header size");
 
 inline constexpr uint16_t kPanoWidth = 1024;
 inline constexpr uint16_t kPanoHeight = 192;

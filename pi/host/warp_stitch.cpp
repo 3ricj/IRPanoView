@@ -1,7 +1,6 @@
 #include "warp_stitch.h"
 
 #include <algorithm>
-#include <cmath>
 #include <cstring>
 #include <fstream>
 
@@ -14,46 +13,28 @@ constexpr char kWarpMagic[4] = {'I', 'R', 'P', 'W'};
 } // namespace
 
 uint16_t WarpStitchStrategy::bilinearSample(const uint16_t* tile, int32_t x_q8, int32_t y_q8) {
-    const float x = static_cast<float>(x_q8) / static_cast<float>(kWarpFixedPoint);
-    const float y = static_cast<float>(y_q8) / static_cast<float>(kWarpFixedPoint);
-    const int x0 = static_cast<int>(std::floor(x));
-    const int y0 = static_cast<int>(std::floor(y));
+    // Fixed-point bilinear (8 fractional bits). Avoids float floor/lround on the hot path.
+    // Floor division for possibly-negative Q8 coords.
+    const int32_t x0 = x_q8 >= 0 ? (x_q8 >> 8) : -(((-x_q8) + 255) >> 8);
+    const int32_t y0 = y_q8 >= 0 ? (y_q8 >> 8) : -(((-y_q8) + 255) >> 8);
     if (x0 < 0 || y0 < 0 || x0 >= kTileW - 1 || y0 >= kTileH - 1) {
-        const int cx = std::max(0, std::min(x0, kTileW - 1));
-        const int cy = std::max(0, std::min(y0, kTileH - 1));
+        const int cx = std::max(0, std::min(static_cast<int>(x0), kTileW - 1));
+        const int cy = std::max(0, std::min(static_cast<int>(y0), kTileH - 1));
         return tile[static_cast<size_t>(cy) * kTileW + static_cast<size_t>(cx)];
     }
-    const float fx = x - static_cast<float>(x0);
-    const float fy = y - static_cast<float>(y0);
-    const auto at = [&](int tx, int ty) -> float {
-        return static_cast<float>(tile[static_cast<size_t>(ty) * kTileW + static_cast<size_t>(tx)]);
-    };
-    const float v00 = at(x0, y0);
-    const float v10 = at(x0 + 1, y0);
-    const float v01 = at(x0, y0 + 1);
-    const float v11 = at(x0 + 1, y0 + 1);
-    const float v0 = v00 + (v10 - v00) * fx;
-    const float v1 = v01 + (v11 - v01) * fx;
-    const float v = v0 + (v1 - v0) * fy;
-    const int rounded = static_cast<int>(std::lround(v));
-    if (rounded < 0) {
-        return 0;
-    }
-    if (rounded > 65535) {
-        return 65535;
-    }
-    return static_cast<uint16_t>(rounded);
-}
-
-uint16_t WarpStitchStrategy::tileMeanU16(const uint16_t* tile, size_t count) {
-    if (count == 0) {
-        return 0;
-    }
-    uint64_t sum = 0;
-    for (size_t i = 0; i < count; ++i) {
-        sum += tile[i];
-    }
-    return static_cast<uint16_t>(sum / count);
+    const int fx = static_cast<int>(x_q8 - (x0 << 8)); // 0..255
+    const int fy = static_cast<int>(y_q8 - (y0 << 8));
+    const size_t row0 = static_cast<size_t>(y0) * kTileW + static_cast<size_t>(x0);
+    const size_t row1 = row0 + static_cast<size_t>(kTileW);
+    const uint32_t v00 = tile[row0];
+    const uint32_t v10 = tile[row0 + 1];
+    const uint32_t v01 = tile[row1];
+    const uint32_t v11 = tile[row1 + 1];
+    const uint32_t v0 = v00 * static_cast<uint32_t>(256 - fx) + v10 * static_cast<uint32_t>(fx);
+    const uint32_t v1 = v01 * static_cast<uint32_t>(256 - fx) + v11 * static_cast<uint32_t>(fx);
+    // Round: + 0.5 in Q16 before shift.
+    const uint32_t v = (v0 * static_cast<uint32_t>(256 - fy) + v1 * static_cast<uint32_t>(fy) + 32768u) >> 16;
+    return static_cast<uint16_t>(v);
 }
 
 bool WarpStitchStrategy::loadBinary(const std::string& path, PanoGeometry& geometry_out, std::vector<std::string>& serials_out) {
@@ -143,30 +124,21 @@ void WarpStitchStrategy::stitch(
         return;
     }
 
-    const size_t tile_pixels = static_cast<size_t>(kTileW) * kTileH;
-    uint16_t means[4]{};
-    for (int cam = 0; cam < 4; ++cam) {
-        means[cam] = tileMeanU16(tiles[cam], tile_pixels);
-    }
-
     const size_t pixel_count = geometry_.pixelCount();
+    const WarpPixelEntry* ent = entries_.data();
     for (size_t p = 0; p < pixel_count; ++p) {
-        uint64_t acc = 0;
+        uint32_t acc = 0;
         uint32_t wsum = 0;
         for (int slot = 0; slot < 4; ++slot) {
-            const WarpPixelEntry& e = entries_[p * 4 + static_cast<size_t>(slot)];
+            const WarpPixelEntry& e = ent[p * 4 + static_cast<size_t>(slot)];
             if (e.weight == 0) {
                 continue;
             }
-            const uint16_t sample = bilinearSample(tiles[slot], e.src_x_q8, e.src_y_q8);
-            acc += static_cast<uint64_t>(sample) * static_cast<uint64_t>(e.weight);
+            const uint32_t sample = bilinearSample(tiles[slot], e.src_x_q8, e.src_y_q8);
+            acc += sample * static_cast<uint32_t>(e.weight);
             wsum += e.weight;
         }
-        if (wsum > 0) {
-            out[p] = static_cast<uint16_t>(acc / wsum);
-        } else {
-            out[p] = 0;
-        }
+        out[p] = wsum > 0 ? static_cast<uint16_t>(acc / wsum) : 0;
     }
 }
 

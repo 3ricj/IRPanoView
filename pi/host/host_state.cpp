@@ -8,6 +8,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <sstream>
 
 namespace irpv {
@@ -122,7 +123,13 @@ bool HostState::start() {
         orchestrator_.stop();
         return false;
     }
+    if (!preview_server_.start(config_.preview_tcp_port)) {
+        raw_server_.stop();
+        orchestrator_.stop();
+        return false;
+    }
     if (!meta_sender_.bind(config_.meta_port)) {
+        preview_server_.stop();
         raw_server_.stop();
         orchestrator_.stop();
         return false;
@@ -130,10 +137,14 @@ bool HostState::start() {
     meta_sender_.setDestination(config_.meta_dest, config_.meta_port);
 
     if (!rtsp_.start(config_.rtsp_port, "/thermal", config_.video_bitrate, geom.width, geom.height)) {
+        preview_server_.stop();
         raw_server_.stop();
         orchestrator_.stop();
         return false;
     }
+
+    std::fprintf(stderr, "Preview U8 TCP port %u (live aiming)\n",
+        static_cast<unsigned>(config_.preview_tcp_port));
 
     compositor_.setTickCallback([this](const hik::PanoSnapshot& snap) { onCompositorTick(snap); });
     compositor_.start();
@@ -143,6 +154,7 @@ bool HostState::start() {
 void HostState::stop() {
     compositor_.stop();
     rtsp_.stop();
+    preview_server_.stop();
     raw_server_.stop();
     orchestrator_.stop();
 }
@@ -171,6 +183,31 @@ void HostState::onCompositorTick(const hik::PanoSnapshot& snap) {
         }
     }
 
+    // Raw U8 live preview (no encode). Latest tick only; single TCP client.
+    if (preview_server_.hasClient()) {
+        double min_c = 0.0;
+        double max_c = 0.0;
+        if (renderer_.renderDisplayU8(
+                snap.pano.data(), snap.pano.size(), pano_w, pano_h, preview_u8_buf_, min_c, max_c)) {
+            PreviewFrameHeader hdr{};
+            hdr.magic = kPreviewMagic;
+            hdr.width = static_cast<uint16_t>(pano_w);
+            hdr.height = static_cast<uint16_t>(pano_h);
+            hdr.sequence = ++preview_seq_;
+            hdr.timestamp_us = snap.compose_us;
+            hdr.min_c = static_cast<float>(min_c);
+            hdr.max_c = static_cast<float>(max_c);
+            preview_packet_.resize(sizeof(PreviewFrameHeader) + preview_u8_buf_.size());
+            std::memcpy(preview_packet_.data(), &hdr, sizeof(hdr));
+            std::memcpy(
+                preview_packet_.data() + sizeof(hdr),
+                preview_u8_buf_.data(),
+                preview_u8_buf_.size());
+            // Latest-only async send — never stall the compositor on TCP.
+            preview_server_.queueLatestFrame(preview_packet_);
+        }
+    }
+
     LatencyMetaPacket meta{};
     meta.video_seq = video_seq;
     meta.compose_us = snap.compose_us;
@@ -185,45 +222,46 @@ void HostState::onCompositorTick(const hik::PanoSnapshot& snap) {
     const uint64_t raw_period_us = static_cast<uint64_t>(raw_period_s * 1e6);
     const bool raw_due = last_raw_emit_us_ == 0 || (encode_submit_us - last_raw_emit_us_) >= raw_period_us;
     if (raw_due) {
-        // Per-camera raw emit: send one tagged IRPV frame per camera (256x192,
-        // unstitched). Stitching happens in post on the client side now.
-        std::string serials[4];
-        for (const auto& s : orchestrator_.cameraStatuses()) {
-            if (s.slot >= 1 && s.slot <= 4) {
-                serials[s.slot - 1] = s.serial;
+        // Always advance the emit clock — otherwise a missing client leaves raw_due
+        // true forever and we rebuild 4 compressed tiles every compose tick (~80ms).
+        last_raw_emit_us_ = encode_submit_us;
+        if (raw_server_.hasClient()) {
+            // Per-camera raw emit: send one tagged IRPV frame per camera (256x192,
+            // unstitched). Stitching happens in post on the client side now.
+            std::string serials[4];
+            for (const auto& s : orchestrator_.cameraStatuses()) {
+                if (s.slot >= 1 && s.slot <= 4) {
+                    serials[s.slot - 1] = s.serial;
+                }
             }
-        }
-        const uint32_t group_seq = ++raw_seq_;
-        bool any_sent = false;
-        hik::TileSnapshot tile;
-        for (int slot = 0; slot < 4; ++slot) {
-            const hik::HikCameraWorker* w = orchestrator_.worker(static_cast<size_t>(slot));
-            if (w == nullptr || !w->copyLatestSnapshot(tile) || !tile.valid || tile.pixels.empty()) {
-                continue;
+            const uint32_t group_seq = ++raw_seq_;
+            hik::TileSnapshot tile;
+            for (int slot = 0; slot < 4; ++slot) {
+                const hik::HikCameraWorker* w = orchestrator_.worker(static_cast<size_t>(slot));
+                if (w == nullptr || !w->copyLatestSnapshot(tile) || !tile.valid || tile.pixels.empty()) {
+                    continue;
+                }
+                ThermalFrameMetaV2 frame_meta{};
+                frame_meta.compose_us = snap.compose_us;
+                frame_meta.emit_us = encode_submit_us;
+                frame_meta.emit_seq = group_seq;
+                frame_meta.slot_frame_seq[slot] = tile.frame_seq;
+                frame_meta.slot_usb_frame_us[slot] = tile.usb_frame_us;
+                auto packet = buildThermalCameraFrame(
+                    group_seq,
+                    encode_submit_us,
+                    tile.pixels.data(),
+                    tile.pixels.size(),
+                    frame_meta,
+                    static_cast<uint8_t>(slot + 1),
+                    static_cast<uint8_t>(4),
+                    serials[slot].c_str(),
+                    static_cast<uint16_t>(hik::kTileW),
+                    static_cast<uint16_t>(hik::kTileH));
+                if (!packet.empty()) {
+                    raw_server_.sendFrame(packet);
+                }
             }
-            ThermalFrameMetaV2 frame_meta{};
-            frame_meta.compose_us = snap.compose_us;
-            frame_meta.emit_us = encode_submit_us;
-            frame_meta.emit_seq = group_seq;
-            frame_meta.slot_frame_seq[slot] = tile.frame_seq;
-            frame_meta.slot_usb_frame_us[slot] = tile.usb_frame_us;
-            auto packet = buildThermalCameraFrame(
-                group_seq,
-                encode_submit_us,
-                tile.pixels.data(),
-                tile.pixels.size(),
-                frame_meta,
-                static_cast<uint8_t>(slot + 1),
-                static_cast<uint8_t>(4),
-                serials[slot].c_str(),
-                static_cast<uint16_t>(hik::kTileW),
-                static_cast<uint16_t>(hik::kTileH));
-            if (!packet.empty() && raw_server_.sendFrame(packet)) {
-                any_sent = true;
-            }
-        }
-        if (any_sent) {
-            last_raw_emit_us_ = encode_submit_us;
         }
     } else {
         ++raw_dropped_ticks_;
@@ -239,6 +277,7 @@ void HostState::onCompositorTick(const hik::PanoSnapshot& snap) {
         stats_.raw_dropped_ticks = raw_dropped_ticks_;
         stats_.encoder_queue_bytes = rtsp_.queueDepth();
         stats_.raw_client_connected = raw_server_.hasClient();
+        stats_.preview_client_connected = preview_server_.hasClient();
     }
 }
 
@@ -270,8 +309,10 @@ std::string HostState::statusJson() const {
         << ",\"raw_emit_fps\":" << config_.raw_emit_fps
         << ",\"rtsp_port\":" << config_.rtsp_port
         << ",\"raw_tcp_port\":" << config_.raw_tcp_port
+        << ",\"preview_tcp_port\":" << config_.preview_tcp_port
         << ",\"meta_port\":" << config_.meta_port
         << ",\"raw_client\":" << (lat.raw_client_connected ? "true" : "false")
+        << ",\"preview_client\":" << (lat.preview_client_connected ? "true" : "false")
         << ",\"demo\":" << (config_.demo_mode ? "true" : "false");
     const std::string offset_path = defaultOffsetPath(config_.offset_file);
     hik::SlotOffset offsets[4]{};

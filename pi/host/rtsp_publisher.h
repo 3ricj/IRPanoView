@@ -7,6 +7,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <vector>
 
 struct _GstElement;
 struct _GMainLoop;
@@ -25,6 +26,7 @@ public:
     bool hasClient() const;
     int queueDepth() const { return queue_depth_; }
     bool pushNv12FrameOnContext(const uint8_t* nv12, size_t bytes);
+    void drainLatestFrameOnContext();
 
 private:
     static void onMediaConfigure(void* factory, void* media, void* user_data);
@@ -43,6 +45,11 @@ private:
     _GstElement* appsrc_ = nullptr;
     mutable std::mutex appsrc_mutex_;
     std::atomic<int> queue_depth_{0};
+
+    // Latest-only pending frame (prevents unbounded GLib queue latency).
+    std::mutex pending_mutex_;
+    std::vector<uint8_t> pending_;
+    bool push_scheduled_ = false;
 
     _GMainLoop* loop_ = nullptr;
     void* server_ = nullptr;

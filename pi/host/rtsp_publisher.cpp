@@ -18,13 +18,12 @@ namespace {
 
 struct PushJob {
     RtspPublisher* self = nullptr;
-    std::vector<uint8_t> bytes;
 };
 
 gboolean pushIdle(gpointer user_data) {
     auto* job = static_cast<PushJob*>(user_data);
     if (job && job->self) {
-        job->self->pushNv12FrameOnContext(job->bytes.data(), job->bytes.size());
+        job->self->drainLatestFrameOnContext();
     }
     delete job;
     return G_SOURCE_REMOVE;
@@ -88,14 +87,14 @@ void RtspPublisher::serverThreadMain() {
 
     auto* factory = gst_rtsp_media_factory_new();
     std::ostringstream launch;
-    launch << "( appsrc name=mysrc is-live=true format=time do-timestamp=false max-buffers=2 leaky-type=downstream "
+    // Live aiming preview: MJPEG, not H.264. At 908x160 the bcm2835 H.264
+    // path's encode buffering dominated latency; jpegenc on this size is cheap
+    // and every frame is independently decodable. Still TCP (Wi-Fi AP loss).
+    launch << "( appsrc name=mysrc is-live=true format=time do-timestamp=false max-buffers=1 leaky-type=downstream "
            << "caps=video/x-raw,format=NV12,width=" << width_
            << ",height=" << height_ << ",framerate=25/1 "
-           << "! v4l2h264enc extra-controls=\"controls,video_bitrate=" << bitrate_
-           << ",h264_i_frame_period=25,h264_profile=4\" "
-           << "! video/x-h264,level=(string)4 "
-           << "! h264parse config-interval=1 "
-           << "! rtph264pay name=pay0 pt=96 config-interval=1 mtu=1400 )";
+           << "! videoconvert ! jpegenc quality=70 "
+           << "! rtpjpegpay name=pay0 pt=26 mtu=1200 )";
     gst_rtsp_media_factory_set_launch(factory, launch.str().c_str());
     gst_rtsp_media_factory_set_shared(factory, TRUE);
     gst_rtsp_media_factory_set_suspend_mode(factory, GST_RTSP_SUSPEND_MODE_NONE);
@@ -155,6 +154,11 @@ void RtspPublisher::stop() {
             appsrc_ = nullptr;
         }
     }
+    {
+        std::lock_guard<std::mutex> lock(pending_mutex_);
+        pending_.clear();
+        push_scheduled_ = false;
+    }
     queue_depth_ = 0;
 }
 
@@ -192,15 +196,44 @@ bool RtspPublisher::pushNv12FrameOnContext(const uint8_t* nv12, size_t bytes) {
     return flow == GST_FLOW_OK;
 }
 
+void RtspPublisher::drainLatestFrameOnContext() {
+    std::vector<uint8_t> frame;
+    {
+        std::lock_guard<std::mutex> lock(pending_mutex_);
+        frame.swap(pending_);
+        push_scheduled_ = false;
+    }
+    if (!frame.empty()) {
+        pushNv12FrameOnContext(frame.data(), frame.size());
+    }
+}
+
 bool RtspPublisher::pushNv12Frame(const uint8_t* nv12, size_t bytes, uint64_t pts_us) {
     (void)pts_us;
     if (!loop_ || !hasClient() || !nv12 || bytes == 0) {
         return false;
     }
-    auto* job = new PushJob{this, std::vector<uint8_t>(nv12, nv12 + bytes)};
+
+    // Latest-only: overwrite any pending frame so GLib never builds a multi-second backlog.
+    bool need_schedule = false;
+    {
+        std::lock_guard<std::mutex> lock(pending_mutex_);
+        pending_.assign(nv12, nv12 + bytes);
+        if (!push_scheduled_) {
+            push_scheduled_ = true;
+            need_schedule = true;
+        }
+    }
+    if (!need_schedule) {
+        return true;
+    }
+
+    auto* job = new PushJob{this};
     GMainContext* ctx = g_main_loop_get_context(loop_);
     if (ctx == nullptr) {
         delete job;
+        std::lock_guard<std::mutex> lock(pending_mutex_);
+        push_scheduled_ = false;
         return false;
     }
     g_main_context_invoke(ctx, pushIdle, job);

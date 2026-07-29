@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("IRPanoView.Viewer")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d5609d71ef2a0c63f0e22fd43481948932718649")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b345982314c894fd1002343d3a624be700b4c463")]
 [assembly: System.Reflection.AssemblyProductAttribute("IRPanoView.Viewer")]
 [assembly: System.Reflection.AssemblyTitleAttribute("IRPanoView.Viewer")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

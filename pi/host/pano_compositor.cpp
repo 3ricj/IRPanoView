@@ -99,6 +99,9 @@ void PanoCompositor::runLoop() {
     auto next_tick = std::chrono::steady_clock::now();
     auto last_report = next_tick;
     int ticks = 0;
+    uint64_t sum_eq_us = 0;
+    uint64_t sum_stitch_us = 0;
+    uint64_t sum_tick_us = 0;
 
     while (running_) {
         const uint64_t compose_us = steadyNowUs();
@@ -131,6 +134,8 @@ void PanoCompositor::runLoop() {
             }
         }
 
+        uint64_t eq_us = 0;
+        uint64_t stitch_us = 0;
         if (any) {
             EqualizerConfig eq_cfg;
             eq_cfg.enabled = equalization_enabled_;
@@ -138,9 +143,13 @@ void PanoCompositor::runLoop() {
             equalizer_.setConfig(eq_cfg);
 
             if (stitch_mode_ == StitchMode::Warp && calib_) {
-                // Radiometric equalization on raw u16 tiles using warp overlap samples.
+                const uint64_t t0 = steadyNowUs();
                 equalizer_.processWarp(tiles, calib_->eqSeams());
+                const uint64_t t1 = steadyNowUs();
                 calib_->warp().stitch(tiles, snap.pano.data(), snap.pano.size());
+                const uint64_t t2 = steadyNowUs();
+                eq_us = t1 - t0;
+                stitch_us = t2 - t1;
             } else if (use_offsets_) {
                 equalizer_.process(tiles, offsets_);
                 offset_stitch_.stitch(tiles, offsets_, snap.pano.data(), snap.pano.size());
@@ -154,18 +163,37 @@ void PanoCompositor::runLoop() {
             latest_ = std::move(snap);
         }
 
+        uint64_t tick_us = 0;
         if (on_tick_) {
+            const uint64_t t0 = steadyNowUs();
             std::lock_guard<std::mutex> lock(snap_mutex_);
             on_tick_(latest_);
+            tick_us = steadyNowUs() - t0;
         }
 
         ++ticks;
+        sum_eq_us += eq_us;
+        sum_stitch_us += stitch_us;
+        sum_tick_us += tick_us;
         const auto now = std::chrono::steady_clock::now();
         const double elapsed = std::chrono::duration<double>(now - last_report).count();
-        if (elapsed >= 1.0) {
+        if (elapsed >= 10.0) {
             tick_hz_ = ticks / elapsed;
+            const double inv = ticks > 0 ? 1.0 / ticks : 0.0;
+            std::fprintf(
+                stderr,
+                "compositor tick_hz=%.1f eq_ms=%.1f stitch_ms=%.1f tick_ms=%.1f\n",
+                tick_hz_,
+                (sum_eq_us * inv) / 1000.0,
+                (sum_stitch_us * inv) / 1000.0,
+                (sum_tick_us * inv) / 1000.0);
             ticks = 0;
+            sum_eq_us = 0;
+            sum_stitch_us = 0;
+            sum_tick_us = 0;
             last_report = now;
+        } else if (elapsed >= 1.0) {
+            tick_hz_ = ticks / elapsed;
         }
 
         next_tick += interval;
