@@ -14,8 +14,8 @@ public sealed class ThermalFrameParser
     public const int CameraInfoBytes = 20;
     public const int CameraSerialBytes = 16;
 
-    public const int DefaultPanoWidth = 908;
-    public const int DefaultPanoHeight = 160;
+    public const int DefaultPanoWidth = 1024;
+    public const int DefaultPanoHeight = 192;
 
     [Obsolete("Use frame Width/Height from IRPV header or DefaultPanoWidth")]
     public const int PanoWidth = DefaultPanoWidth;

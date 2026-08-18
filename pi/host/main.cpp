@@ -73,12 +73,16 @@ int main(int argc, char** argv) {
     ready << "ok\n";
 
     while (g_running) {
-        std::ifstream cmd_in(config.control_socket + ".cmd");
+        const std::string cmd_path = config.control_socket + ".cmd";
+        std::ifstream cmd_in(cmd_path);
         std::string line;
         if (std::getline(cmd_in, line) && !line.empty()) {
+            cmd_in.close();
             const std::string response = host.handleCommand(line);
             std::ofstream cmd_out(config.control_socket + ".resp");
             cmd_out << response << '\n';
+            // Clear cmd so the same request is not re-handled every 20ms.
+            std::ofstream clear_cmd(cmd_path, std::ios::trunc);
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }

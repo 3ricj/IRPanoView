@@ -32,7 +32,7 @@ struct HostConfig {
     int video_bitrate = 1500000;
     double display_floor_c = 20.0;
     double display_ceiling_c = 40.0;
-    bool display_auto_range = true;
+    bool display_auto_range = false;
     std::string offset_file; // empty = $HOME/position_shift.txt
     std::string stitch_calib_dir; // empty = try $HOME/stitch-calib
     std::string stitch_mode = "auto"; // auto | offset | warp | edge

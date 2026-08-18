@@ -20,12 +20,19 @@ class ThermalFrameView @JvmOverloads constructor(
     private var bitmap: Bitmap? = null
 
     fun updateBitmap(newFrame: Bitmap) {
-        bitmap = newFrame
-        invalidate()
+        post {
+            val old = bitmap
+            bitmap = newFrame
+            if (old != null && old !== newFrame && !old.isRecycled) {
+                old.recycle()
+            }
+            invalidate()
+        }
     }
 
     override fun onDraw(canvas: Canvas) {
         val bmp = bitmap ?: return
+        if (bmp.isRecycled) return
         srcRect.set(0, 0, bmp.width, bmp.height)
         val bmpAspect = bmp.width.toFloat() / bmp.height
         val viewAspect = width.toFloat() / height
@@ -42,6 +49,7 @@ class ThermalFrameView @JvmOverloads constructor(
     }
 
     override fun onDetachedFromWindow() {
+        bitmap?.let { if (!it.isRecycled) it.recycle() }
         bitmap = null
         super.onDetachedFromWindow()
     }

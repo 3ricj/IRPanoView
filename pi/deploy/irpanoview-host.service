@@ -20,7 +20,12 @@ ExecStart=/home/ericj/IRPanoView/pi/build/irpanoview-host \
     --meta-dest 255.255.255.255 --meta-port 8768 \
     --raw-tcp-port 8767 --rtsp-port 8554 \
     --control-socket /run/irpanoview/control.sock \
-    --stitch-calib /home/ericj/stitch-calib --stitch-mode warp
+    --stitch-mode edge
+# TimeoutStopSec: host can hang on USB teardown; don't block restarts forever.
+TimeoutStopSec=10
+KillMode=control-group
+KillSignal=SIGTERM
+FinalKillSignal=SIGKILL
 Restart=always
 RestartSec=5
 

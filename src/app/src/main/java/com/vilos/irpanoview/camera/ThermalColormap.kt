@@ -9,10 +9,12 @@ import kotlin.math.sqrt
 object ThermalColormap {
     private val caches = mutableMapOf<ThermalColorPalette, IntArray>()
 
-    fun color(palette: ThermalColorPalette, value: Int): Int {
-        val lut = caches.getOrPut(palette) { buildLut(palette) }
-        return lut[value.coerceIn(0, 255)]
-    }
+    @Synchronized
+    fun lut(palette: ThermalColorPalette): IntArray =
+        caches.getOrPut(palette) { buildLut(palette) }
+
+    fun color(palette: ThermalColorPalette, value: Int): Int =
+        lut(palette)[value.coerceIn(0, 255)]
 
     fun composeColor(palette: ThermalColorPalette, value: Int): Color =
         Color(color(palette, value))

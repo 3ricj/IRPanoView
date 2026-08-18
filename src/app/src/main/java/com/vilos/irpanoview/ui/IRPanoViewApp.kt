@@ -65,11 +65,11 @@ fun IRPanoViewApp(
         ) {
             ConnectionBanner(
                 piHost = state.piHost,
+                wifiSsid = state.wifiSsid,
+                statusLine = state.statusLine,
                 piStatus = piStatus,
                 streamStats = streamStats,
                 demoMode = state.demoMode,
-                onConnect = vm::connectPi,
-                onDisconnect = vm::disconnectPi,
             )
             PanoStreamView(
                 modifier = Modifier
@@ -82,6 +82,14 @@ fun IRPanoViewApp(
                 windowMinC = state.windowMinC,
                 windowMaxC = state.windowMaxC,
                 modifier = Modifier.fillMaxWidth(),
+            )
+            ThermalRangeControls(
+                floorCelsius = state.thermalFloorCelsius,
+                ceilingCelsius = state.thermalCeilingCelsius,
+                onRangeChange = vm::setThermalDisplayRange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
             )
         }
     }

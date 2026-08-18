@@ -2,7 +2,7 @@
 """Convert recorded IRPanoView radiometric frames into Jet-colored TIFs.
 
 Reads the raw ``*-u16.bin`` payloads written by the viewer's RawTimelapseRecorder
-(908x160 little-endian uint16, no header) and renders flicker-stable 8-bit RGB
+(908x192 little-endian uint16, no header) and renders flicker-stable 8-bit RGB
 TIFs for video assembly.
 
 Key behavior:
@@ -78,8 +78,8 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--output", default=None, help="Output folder (default: <input>/converted)")
     ap.add_argument("--skip", type=int, default=100, help="Process every Nth frame (default 100)")
     ap.add_argument("--start-index", type=int, default=100000, help="First CONVERTED_NNNNNN number")
-    ap.add_argument("--width", type=int, default=908)
-    ap.add_argument("--height", type=int, default=160)
+    ap.add_argument("--width", type=int, default=1024)
+    ap.add_argument("--height", type=int, default=192)
     ap.add_argument("--ema-alpha", type=float, default=0.05,
                     help="EMA weight for new per-frame percentiles (smaller = slower drift, less flicker)")
     ap.add_argument("--p-low", type=float, default=1.0, help="Low percentile for window min")

@@ -87,7 +87,7 @@ void RtspPublisher::serverThreadMain() {
 
     auto* factory = gst_rtsp_media_factory_new();
     std::ostringstream launch;
-    // Live aiming preview: MJPEG, not H.264. At 908x160 the bcm2835 H.264
+    // Live aiming preview: MJPEG, not H.264. At 908x192 the bcm2835 H.264
     // path's encode buffering dominated latency; jpegenc on this size is cheap
     // and every frame is independently decodable. Still TCP (Wi-Fi AP loss).
     launch << "( appsrc name=mysrc is-live=true format=time do-timestamp=false max-buffers=1 leaky-type=downstream "

@@ -207,7 +207,7 @@
     }
   ],
   "output_width": 908,
-  "output_height": 160,
+  "output_height": 192,
   "slot_serials": [
     "EA6744407",
     "EA6462986",
@@ -229,5 +229,5 @@
     "roll_sign": 1.0,
     "shift_sign": 1.0
   },
-  "calib_hash": "491a5f29ebdb2a2b"
+  "calib_hash": "3e9de27013192bbc"
 }

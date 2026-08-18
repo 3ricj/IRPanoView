@@ -19,6 +19,20 @@ mDNS: `avahi-irpanoview.service` advertises **`irpanoview.local`** with `rtsp=85
 
 When migrating off shared WiFi, enable Pi hotspot using [hostapd.conf](hostapd.conf) and [dnsmasq.conf](dnsmasq.conf) (Pi at `192.168.4.1`, SSID `IRPanoView`).
 
+## Boot autostart
+
+Enable both host and control (recommended — Android needs :8766):
+
+```bash
+sudo bash ~/IRPanoView/pi/deploy/enable-host-boot.sh
+```
+
+Control only (fixes "Waiting for Pi at 192.168.4.1" when preview still works):
+
+```bash
+sudo bash ~/IRPanoView/pi/deploy/enable-control-boot.sh
+```
+
 ## Recovery
 
 If a camera drops, restart after hub power events:
@@ -27,4 +41,4 @@ If a camera drops, restart after hub power events:
 sudo systemctl restart irpanoview-host irpanoview-control
 ```
 
-`irpanoview-host.service` is installed but **not** auto-enabled by default. Start manually: `systemctl start irpanoview-host` (after `sudo systemctl enable` if you want boot autostart).
+Check listeners: `ss -ltn | grep -E '8766|8769'`. Android probes **8766**; Windows preview uses **8769**.

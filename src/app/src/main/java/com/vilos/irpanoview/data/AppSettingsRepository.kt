@@ -73,6 +73,28 @@ class AppSettingsRepository(private val context: Context) {
         ThermalDisplaySettings.setRange(floor, ceiling)
     }
 
+    suspend fun readDisplayAutoRange(): Boolean {
+        val prefs = context.appSettingsStore.data.first()
+        return prefs[DISPLAY_AUTO_RANGE] ?: false
+    }
+
+    suspend fun setDisplayAutoRange(auto: Boolean) {
+        context.appSettingsStore.edit { prefs ->
+            prefs[DISPLAY_AUTO_RANGE] = auto
+        }
+    }
+
+    suspend fun readEqualizationEnabled(): Boolean {
+        val prefs = context.appSettingsStore.data.first()
+        return prefs[EQUALIZATION_ENABLED] ?: true
+    }
+
+    suspend fun setEqualizationEnabled(enabled: Boolean) {
+        context.appSettingsStore.edit { prefs ->
+            prefs[EQUALIZATION_ENABLED] = enabled
+        }
+    }
+
     suspend fun readIrConfig(): Triple<Double, Double, Double> {
         val prefs = context.appSettingsStore.data.first()
         val ems = prefs[EMISSIVITY_HUNDREDTHS]?.let { it / 100.0 }
@@ -95,13 +117,13 @@ class AppSettingsRepository(private val context: Context) {
 
     fun piHostFlow(): Flow<String> =
         context.appSettingsStore.data.map { prefs ->
-            PiConnectionManager.normalizeHost(prefs[PI_HOST])
+            canonicalizePiHost(PiConnectionManager.normalizeHost(prefs[PI_HOST]))
         }
 
     suspend fun readPiHost(): String = piHostFlow().first()
 
     suspend fun setPiHost(host: String) {
-        val normalized = PiConnectionManager.normalizeHost(host)
+        val normalized = canonicalizePiHost(PiConnectionManager.normalizeHost(host))
         context.appSettingsStore.edit { prefs ->
             prefs[PI_HOST] = normalized
         }
@@ -111,10 +133,23 @@ class AppSettingsRepository(private val context: Context) {
         private val TEMPORAL_AVERAGE_FRAMES = intPreferencesKey("temporal_average_frames")
         private val THERMAL_FLOOR_TENTHS = intPreferencesKey("thermal_floor_tenths")
         private val THERMAL_CEILING_TENTHS = intPreferencesKey("thermal_ceiling_tenths")
+        private val DISPLAY_AUTO_RANGE = booleanPreferencesKey("display_auto_range")
+        private val EQUALIZATION_ENABLED = booleanPreferencesKey("equalization_enabled")
         private val EMISSIVITY_HUNDREDTHS = intPreferencesKey("ir_emissivity_hundredths")
         private val DISTANCE_CM = intPreferencesKey("ir_distance_cm")
         private val AMBIENT_TENTHS = intPreferencesKey("ir_ambient_tenths")
         private val DEBUG_STATS_ENABLED = booleanPreferencesKey("debug_stats_enabled")
         private val PI_HOST = stringPreferencesKey("pi_host")
+
+        /** Old default was mDNS; that prefers IPv6 on some tablets and breaks TCP 8769. */
+        fun canonicalizePiHost(host: String): String {
+            val h = host.trim()
+            if (h.equals("irpanoview.local", ignoreCase = true) ||
+                h.equals("localhost", ignoreCase = true)
+            ) {
+                return PiConnectionManager.PI_AP_GATEWAY
+            }
+            return h
+        }
     }
 }

@@ -1,0 +1,233 @@
+{
+  "version": 1,
+  "source_pts": "EA6462986 Panorama.pts",
+  "lens": {
+    "projection": "rectilinear",
+    "focal_mm": 3.2587075653184767,
+    "sensor_diagonal_mm": 3.8400000000000003,
+    "a": -0.019877013260669027,
+    "b": 0.028870644774506377,
+    "c": -0.04580840174913856,
+    "shift_long": 0.12733903027550827,
+    "shift_short": -0.1427760035026948
+  },
+  "pano": {
+    "projection": "cylindrical",
+    "hfov_deg": 191.64576119184494,
+    "vfov_deg": 32.80861061811447,
+    "crop": [
+      0.0,
+      0.0,
+      1.0,
+      1.0
+    ],
+    "size_fraction": 1.0
+  },
+  "cameras": {
+    "EA6462986": {
+      "serial": "EA6462986",
+      "width": 256,
+      "height": 192,
+      "yaw_deg": -13.907801095565674,
+      "pitch_deg": 8.553628904853383,
+      "roll_deg": 3.486509185404401,
+      "ptgui_index": 0,
+      "yaw_offset_deg": 0.0,
+      "pitch_offset_deg": 0.0
+    },
+    "EA6473497": {
+      "serial": "EA6473497",
+      "width": 256,
+      "height": 192,
+      "yaw_deg": 79.63620797220221,
+      "pitch_deg": 7.510610473527095,
+      "roll_deg": 0.456585583514169,
+      "ptgui_index": 1,
+      "yaw_offset_deg": 0.0,
+      "pitch_offset_deg": 0.0
+    },
+    "EA6744407": {
+      "serial": "EA6744407",
+      "width": 256,
+      "height": 192,
+      "yaw_deg": -62.104346284220696,
+      "pitch_deg": 9.826157875489741,
+      "roll_deg": 2.3233787298458424,
+      "ptgui_index": 2,
+      "yaw_offset_deg": 0.0,
+      "pitch_offset_deg": 0.0
+    },
+    "EA6744502": {
+      "serial": "EA6744502",
+      "width": 256,
+      "height": 192,
+      "yaw_deg": 31.07403713822029,
+      "pitch_deg": 6.943685445160725,
+      "roll_deg": 2.2200298259174644,
+      "ptgui_index": 3,
+      "yaw_offset_deg": 0.0,
+      "pitch_offset_deg": 0.0
+    }
+  },
+  "control_points": [
+    {
+      "t": 0,
+      "0": [
+        0,
+        0,
+        233,
+        145
+      ],
+      "1": [
+        3,
+        0,
+        12,
+        145
+      ]
+    },
+    {
+      "t": 0,
+      "0": [
+        0,
+        0,
+        244,
+        66
+      ],
+      "1": [
+        3,
+        0,
+        21,
+        66
+      ]
+    },
+    {
+      "t": 0,
+      "0": [
+        0,
+        0,
+        245,
+        154
+      ],
+      "1": [
+        3,
+        0,
+        22,
+        154
+      ]
+    },
+    {
+      "t": 0,
+      "0": [
+        2,
+        0,
+        239,
+        175
+      ],
+      "1": [
+        0,
+        0,
+        8,
+        178
+      ]
+    },
+    {
+      "t": 0,
+      "0": [
+        2,
+        0,
+        248,
+        111
+      ],
+      "1": [
+        0,
+        0,
+        10,
+        115
+      ]
+    },
+    {
+      "t": 0,
+      "0": [
+        3,
+        0,
+        242,
+        152
+      ],
+      "1": [
+        1,
+        0,
+        3,
+        156
+      ]
+    },
+    {
+      "t": 0,
+      "0": [
+        3,
+        0,
+        253,
+        157
+      ],
+      "1": [
+        1,
+        0,
+        15,
+        162
+      ]
+    },
+    {
+      "t": 0,
+      "0": [
+        3,
+        0,
+        247,
+        117
+      ],
+      "1": [
+        1,
+        0,
+        6,
+        121
+      ]
+    },
+    {
+      "t": 0,
+      "0": [
+        2,
+        0,
+        245,
+        69
+      ],
+      "1": [
+        0,
+        0,
+        8,
+        71
+      ]
+    }
+  ],
+  "output_width": 908,
+  "output_height": 160,
+  "slot_serials": [
+    "EA6744407",
+    "EA6462986",
+    "EA6744502",
+    "EA6473497"
+  ],
+  "bake_source": "pts_forward",
+  "convention": {
+    "rot_order": "YXZ",
+    "use_rt": true,
+    "pano_v_linear": false,
+    "pano_y_down": false,
+    "shift_mode": "panotools_diag",
+    "distort_mode": "pixel_pano",
+    "proj_y_flip": false,
+    "center_at_half": false,
+    "yaw_sign": 1.0,
+    "pitch_sign": 1.0,
+    "roll_sign": 1.0,
+    "shift_sign": 1.0
+  },
+  "calib_hash": "491a5f29ebdb2a2b"
+}

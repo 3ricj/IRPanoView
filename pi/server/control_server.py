@@ -27,11 +27,18 @@ WS_PORT = int(os.environ.get("IRPV_WS_PORT", "8766"))
 
 def send_host_command(payload: dict) -> dict:
     CONTROL_DIR.mkdir(parents=True, exist_ok=True)
-    CMD_FILE.write_text(json.dumps(payload), encoding="utf-8")
-    for _ in range(50):
-        if RESP_FILE.exists():
+    # Drop stale ack from the host's previous poll cycle before writing a new cmd.
+    RESP_FILE.unlink(missing_ok=True)
+    CMD_FILE.write_text(json.dumps(payload, separators=(",", ":")) + "\n", encoding="utf-8")
+    for _ in range(100):
+        if RESP_FILE.exists() and RESP_FILE.stat().st_size > 0:
             text = RESP_FILE.read_text(encoding="utf-8").strip()
             RESP_FILE.unlink(missing_ok=True)
+            # Host may re-ack the same cmd; truncate cmd so it is not re-run forever.
+            try:
+                CMD_FILE.write_text("", encoding="utf-8")
+            except OSError:
+                pass
             return json.loads(text) if text else {"cmd": "error", "message": "empty response"}
         time.sleep(0.02)
     return {"cmd": "error", "message": "host timeout"}

@@ -355,6 +355,22 @@ def derive_ptgui_weights(
     return weights
 
 
+def _normalize_feather_from_masks(masks: np.ndarray) -> np.ndarray:
+    """Distance-transform feather from boolean coverage masks [num_cams,H,W]."""
+    from scipy.ndimage import distance_transform_edt
+
+    num_cams, out_h, out_w = masks.shape
+    dist = np.zeros((num_cams, out_h, out_w), dtype=np.float64)
+    for ci in range(num_cams):
+        dist[ci] = distance_transform_edt(masks[ci])
+    wsum = dist.sum(axis=0)
+    weights = np.zeros((num_cams, out_h, out_w), dtype=np.float32)
+    nz = wsum > 0.0
+    for ci in range(num_cams):
+        weights[ci][nz] = (dist[ci][nz] / wsum[nz]).astype(np.float32)
+    return weights
+
+
 def derive_feather_weights(
     serials: List[str],
     layers_dir: Path,
@@ -375,19 +391,30 @@ def derive_feather_weights(
     - 2+ cameras overlap -> a smooth ramp across the whole overlap region, so the
       seam is averaged over a gradient instead of a hard cut + narrow feather.
     """
-    from scipy.ndimage import distance_transform_edt
-
-    num_cams = len(serials)
     _, masks, _ = load_ptgui_layers(serials, layers_dir, out_w, out_h)
-    dist = np.zeros((num_cams, out_h, out_w), dtype=np.float64)
-    for ci in range(num_cams):
-        dist[ci] = distance_transform_edt(masks[ci])
-    wsum = dist.sum(axis=0)
-    weights = np.zeros((num_cams, out_h, out_w), dtype=np.float32)
-    nz = wsum > 0.0
-    for ci in range(num_cams):
-        weights[ci][nz] = (dist[ci][nz] / wsum[nz]).astype(np.float32)
-    return weights
+    return _normalize_feather_from_masks(masks)
+
+
+def derive_feather_weights_from_lut(src_x: np.ndarray) -> np.ndarray:
+    """Feather from forward-projection coverage (src_x >= 0), when PTGUI layers don't match."""
+    return _normalize_feather_from_masks(src_x >= 0.0)
+
+
+def ptgui_layers_match_size(layers_dir: Path, out_w: int, out_h: int) -> bool:
+    try:
+        blended = Image.open(blended_ref_path(layers_dir))
+        return blended.size == (out_w, out_h)
+    except OSError:
+        return False
+
+
+def apply_zero_pitch(project: dict) -> None:
+    for g in project["imagegroups"]:
+        g["position"]["params"]["pitch"] = 0.0
+
+
+def apply_vfov(project: dict, vfov_deg: float) -> None:
+    project["panoramaparams"]["vfov"] = float(vfov_deg)
 
 
 def render_from_lut(
@@ -597,21 +624,44 @@ def write_proof_bundle(
     layers_dir: Path,
     images_dir: Path,
     seam_mode: str = "ptgui_blend",
+    skip_ptgui_compare: bool = False,
 ) -> None:
     proof_dir.mkdir(parents=True, exist_ok=True)
     sources = [np.array(Image.open(images_dir / f"{s}.jpg").convert("RGB")) for s in serials]
-
-    pano_ref = np.array(Image.open(blended_ref_path(layers_dir)).convert("RGB"))
     pano_ours = render_stitch(src_x, src_y, weights, sources)
-    mse, mad, _ = masked_mse(pano_ours, pano_ref)
     metrics = dict(metrics)
-    metrics["pano_mse"] = mse
-    metrics["pano_mad"] = mad
     metrics["seam_mode"] = seam_mode
     metrics["convention"] = conv.__dict__
+    Image.fromarray(pano_ours).save(proof_dir / "pano_ours.jpg", quality=92)
+
+    out_h, out_w = src_x.shape[1], src_x.shape[2]
+    if skip_ptgui_compare or not ptgui_layers_match_size(layers_dir, out_w, out_h):
+        metrics["ptgui_compare"] = False
+        metrics["pano_mse"] = -1.0
+        metrics["pano_mad"] = -1.0
+        metrics["seam_band_mad"] = -1.0
+        metrics["seam_band_px"] = 0
+        (proof_dir / "validation.json").write_text(json.dumps(metrics, indent=2) + "\n", encoding="utf-8")
+        lines = [
+            "Warp proof (PTGUI layer compare skipped — size/pose mismatch)",
+            f"Convention: {conv_tag(conv)}",
+            f"Seam mode: {seam_mode}",
+            f"Output: {out_w}x{out_h}",
+            "",
+            "Open pano_ours.jpg to eyeball the remapped stitch.",
+        ]
+        (proof_dir / "README.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        print("\n".join(lines))
+        return
+
+    pano_ref = np.array(Image.open(blended_ref_path(layers_dir)).convert("RGB"))
+    mse, mad, _ = masked_mse(pano_ours, pano_ref)
+    metrics["pano_mse"] = mse
+    metrics["pano_mad"] = mad
+    metrics["ptgui_compare"] = True
 
     # Seam-band MAD: error measured only where cameras overlap (the seam/feather band).
-    band = seam_band_mask(layers_dir, serials, src_x.shape[2], src_x.shape[1])
+    band = seam_band_mask(layers_dir, serials, out_w, out_h)
     seam_mad, seam_n = masked_mad_on(pano_ours, pano_ref, band)
     metrics["seam_band_mad"] = seam_mad
     metrics["seam_band_px"] = seam_n
@@ -621,7 +671,6 @@ def write_proof_bundle(
         proof_dir / "pano_seam_band_diff.jpg",
     )
 
-    Image.fromarray(pano_ours).save(proof_dir / "pano_ours.jpg", quality=92)
     Image.fromarray(pano_ref).save(proof_dir / "pano_ptgui.jpg", quality=92)
     save_side_by_side(pano_ours, pano_ref, proof_dir / "pano_side_by_side.jpg", "OURS (LUT stitch)", "PTGUI blend")
     save_diff_heatmap(pano_ours, pano_ref, proof_dir / "pano_diff_heat.jpg")
@@ -672,6 +721,12 @@ def main() -> int:
     ap.add_argument("--proof", type=Path, default=Path("stitch-calib/proof"), help="Write validation images here")
     ap.add_argument("--width", type=int, default=0)
     ap.add_argument("--height", type=int, default=0)
+    ap.add_argument("--vfov", type=float, default=0.0, help="Override panoramaparams vfov (degrees)")
+    ap.add_argument(
+        "--zero-pitch",
+        action="store_true",
+        help="Force every camera pitch to 0 (keep yaw/roll/lens)",
+    )
     ap.add_argument("--sweep", action="store_true", help="Sweep conventions against PTGUI layers")
     ap.add_argument("--from-proof", type=Path, help="Load winning convention from proof/validation.json")
     ap.add_argument("--no-write-lut", action="store_true", help="Proof only; skip warp_lut.bin")
@@ -688,11 +743,26 @@ def main() -> int:
         raise SystemExit("Pillow required")
 
     project = load_pts_project(args.pts)
+    if args.zero_pitch:
+        apply_zero_pitch(project)
+        print("Zeroed all camera pitches to 0")
+    if args.vfov > 0:
+        apply_vfov(project, args.vfov)
+        print(f"Override vfov={args.vfov:.6f} deg")
+
     if args.width > 0 and args.height > 0:
         out_w, out_h = args.width, args.height
     else:
         im = Image.open(blended_ref_path(args.layers))
         out_w, out_h = im.size
+
+    layers_ok = ptgui_layers_match_size(args.layers, out_w, out_h)
+    skip_ptgui = args.zero_pitch or not layers_ok
+    if skip_ptgui:
+        print(
+            f"PTGUI layer compare disabled "
+            f"(zero_pitch={args.zero_pitch}, layers_match={layers_ok}, out={out_w}x{out_h})"
+        )
 
     conv = Convention()
     metrics: Dict[str, float] = {}
@@ -711,22 +781,40 @@ def main() -> int:
         metrics = {k: v for k, v in vdata.items() if k != "convention" and isinstance(v, (int, float))}
         print(f"Loaded convention from {args.from_proof}: {conv_tag(conv)}")
     elif args.sweep:
+        if skip_ptgui:
+            raise SystemExit("--sweep requires PTGUI layers matching output size")
         conv, metrics = sweep_conventions(project, out_w, out_h, args.layers, args.images)
-    else:
+    elif not skip_ptgui:
         sx, sy, _, serials = bake_lut(project, out_w, out_h, conv)
         metrics = compare_layers(sx, sy, serials, args.layers, args.images)
 
     src_x, src_y, weights, serials = bake_lut(project, out_w, out_h, conv)
     if args.seam == "ptgui_blend":
+        if skip_ptgui:
+            raise SystemExit("--seam ptgui_blend requires matching PTGUI layers; use feather or geometric")
         weights = derive_ptgui_weights(serials, args.layers, out_w, out_h, weights)
         print("Seam weights: ptgui_blend (derived from PTGUI layer exports)")
     elif args.seam == "feather":
-        weights = derive_feather_weights(serials, args.layers, out_w, out_h)
-        print("Seam weights: feather (distance gradient cross-fade over overlap)")
+        if skip_ptgui:
+            weights = derive_feather_weights_from_lut(src_x)
+            print("Seam weights: feather (distance gradient from LUT coverage)")
+        else:
+            weights = derive_feather_weights(serials, args.layers, out_w, out_h)
+            print("Seam weights: feather (distance gradient cross-fade over overlap)")
     else:
         print("Seam weights: geometric (argmax ray z)")
     write_proof_bundle(
-        args.proof, conv, metrics, src_x, src_y, weights, serials, args.layers, args.images, seam_mode=args.seam
+        args.proof,
+        conv,
+        metrics,
+        src_x,
+        src_y,
+        weights,
+        serials,
+        args.layers,
+        args.images,
+        seam_mode=args.seam,
+        skip_ptgui_compare=skip_ptgui,
     )
 
     if args.no_write_lut:
@@ -736,10 +824,18 @@ def main() -> int:
     slot_serials, src_x, src_y, weights, _ = reorder_by_slot(serials, src_x, src_y, weights)
     args.out.mkdir(parents=True, exist_ok=True)
     data = calib_to_dict(parse_pts(args.pts))
+    # Reflect bake overrides in written calib (parse_pts reads the original .pts).
+    if args.vfov > 0:
+        data["pano"]["vfov_deg"] = float(args.vfov)
+    if args.zero_pitch:
+        for serial in data.get("cameras", {}):
+            data["cameras"][serial]["pitch_deg"] = 0.0
     data["output_width"] = out_w
     data["output_height"] = out_h
     data["slot_serials"] = slot_serials
     data["bake_source"] = "pts_forward"
+    if args.zero_pitch:
+        data["bake_source"] = "pts_forward_zero_pitch"
     data["convention"] = conv.__dict__
     for serial in data.get("cameras", {}):
         data["cameras"][serial]["yaw_offset_deg"] = 0.0

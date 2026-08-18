@@ -1,15 +1,29 @@
 [Unit]
-Description=IRPanoView WebSocket control server
+Description=IRPanoView WebSocket control server (port 8766)
+After=network-online.target
+Wants=network-online.target
+# Soft dependency only: Android probes 8766 for "Pi reachable". Do NOT
+# Requires= the host — if the host is slow/USB-stuck, control must still listen.
 After=irpanoview-host.service
-Requires=irpanoview-host.service
+Wants=irpanoview-host.service
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
+User=ericj
+Group=ericj
+Environment=HOME=/home/ericj
 Environment=IRPV_CONTROL_DIR=/run/irpanoview
 Environment=IRPV_WS_PORT=8766
-ExecStart=/usr/bin/python3 /opt/irpanoview/control_server.py
-Restart=on-failure
+Environment=IRPV_WS_HOST=0.0.0.0
+# Same runtime dir the host uses for control.sock.{cmd,resp,ready}.
+RuntimeDirectory=irpanoview
+WorkingDirectory=/home/ericj
+ExecStart=/usr/bin/python3 /home/ericj/IRPanoView/pi/server/control_server.py
+Restart=always
 RestartSec=2
+TimeoutStopSec=5
+KillMode=control-group
 
 [Install]
 WantedBy=multi-user.target

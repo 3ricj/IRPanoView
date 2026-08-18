@@ -24,10 +24,16 @@ class PiControlClient {
     data class PiStatus(
         val connected: Boolean = false,
         val cameras: List<CameraHealth> = emptyList(),
-        val stitchFps: Double = 0.0,
+        /** Host compositor tick rate (status field compositor_hz). */
+        val compositorHz: Double = 0.0,
         val demo: Boolean = false,
+        val equalizationEnabled: Boolean = true,
+        val previewClient: Boolean = false,
         val lastError: String? = null,
-    )
+    ) {
+        /** Alias for UI that still labels "stitch fps". */
+        val stitchFps: Double get() = compositorHz
+    }
 
     private val client = OkHttpClient.Builder()
         .pingInterval(20, TimeUnit.SECONDS)
@@ -89,6 +95,29 @@ class PiControlClient {
         )
     }
 
+    fun setDisplayRange(floorC: Double, ceilingC: Double, auto: Boolean) {
+        sendJson(
+            JSONObject()
+                .put("cmd", "set_display_range")
+                .put("floor_c", floorC)
+                .put("ceiling_c", ceilingC)
+                .put("auto", auto),
+        )
+        android.util.Log.i(
+            "PiControl",
+            "set_display_range floor=$floorC ceiling=$ceilingC auto=$auto",
+        )
+    }
+
+    fun setEqualization(enabled: Boolean, alpha: Double = 0.05) {
+        sendJson(
+            JSONObject()
+                .put("cmd", "set_equalization")
+                .put("enabled", enabled)
+                .put("alpha", alpha),
+        )
+    }
+
     fun requestStatus() {
         sendJson(JSONObject().put("cmd", "get_status"))
     }
@@ -116,13 +145,30 @@ class PiControlClient {
                             )
                         }
                     }
+                    val hz = when {
+                        json.has("compositor_hz") -> json.optDouble("compositor_hz")
+                        else -> json.optDouble("stitch_fps")
+                    }
                     _status.value = _status.value.copy(
                         connected = true,
                         cameras = cameras,
-                        stitchFps = json.optDouble("stitch_fps"),
+                        compositorHz = hz,
                         demo = json.optBoolean("demo"),
+                        equalizationEnabled = if (json.has("eq_enabled")) {
+                            json.optBoolean("eq_enabled")
+                        } else {
+                            _status.value.equalizationEnabled
+                        },
+                        previewClient = json.optBoolean("preview_client"),
                         lastError = null,
                     )
+                }
+                "ack" -> {
+                    if (json.has("eq_enabled")) {
+                        _status.value = _status.value.copy(
+                            equalizationEnabled = json.optBoolean("eq_enabled"),
+                        )
+                    }
                 }
                 "hello" -> requestStatus()
             }

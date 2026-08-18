@@ -27,7 +27,7 @@ android {
         versionCode = 2
         versionName = "0.2.0"
         buildConfigField("String", "SHUTDOWN_BUILD_STAMP", "\"$shutdownBuildStamp\"")
-        buildConfigField("String", "PI_HOST", "\"irpanoview.local\"")
+        buildConfigField("String", "PI_HOST", "\"192.168.4.1\"")
         buildConfigField("int", "UDP_PORT", "8765")
         buildConfigField("int", "WS_PORT", "8766")
     }

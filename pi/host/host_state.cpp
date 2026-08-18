@@ -79,13 +79,19 @@ bool HostState::start() {
         compositor_.setStitchMode(hik::StitchMode::Edge);
     }
 
+    // Load position_shift for thermal overlap equalization sample widths.
+    // Edge mode keeps hard-abut geometry; Offset mode also uses these for placement.
     if (!use_warp) {
         const std::string offset_path = defaultOffsetPath(config_.offset_file);
         hik::SlotOffset offsets[4]{};
         if (hik::OffsetStitchStrategy::loadOffsets(offset_path, offsets)) {
             compositor_.setOffsets(offsets);
-            compositor_.setStitchMode(hik::StitchMode::Offset);
-            std::fprintf(stderr, "Loaded stitch offsets from %s\n", offset_path.c_str());
+            if (config_.stitch_mode != "edge") {
+                compositor_.setStitchMode(hik::StitchMode::Offset);
+            }
+            std::fprintf(stderr, "Loaded stitch offsets from %s (%s)\n",
+                offset_path.c_str(),
+                config_.stitch_mode == "edge" ? "eq-only; edge abut geometry" : "offset stitch");
             for (int i = 0; i < 4; ++i) {
                 std::fprintf(stderr, "  slot %d dx=%d dy=%d\n", i + 1, offsets[i].dx, offsets[i].dy);
             }

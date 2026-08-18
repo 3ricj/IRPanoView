@@ -59,8 +59,9 @@ fun SettingsBottomSheet(
 
             Text("Connection", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Phone and Pi on the same WiFi AP. Default host is ${PiConnectionManager.DEFAULT_PI_HOST} " +
-                    "(mDNS) or set the Pi's LAN IP / DHCP reservation.",
+                "App auto-connects to ${PiConnectionManager.PI_AP_GATEWAY} over IPv4 when " +
+                    "WiFi ${PiConnectionManager.PI_WIFI_SSID} is available. No Connect button — " +
+                    "join that WiFi once (password ${PiConnectionManager.PI_WIFI_PSK}) if needed.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -91,15 +92,35 @@ fun SettingsBottomSheet(
 
             Text("Display range", style = MaterialTheme.typography.titleMedium)
             Text(
-                "Floor and ceiling bound the auto-adjusted palette window locally on the phone.",
+                "Floor/ceiling live on the main screen (10–50 °C wildlife band). " +
+                    "They clip the scene radiometric window — they do not stretch the LUT " +
+                    "into empty range. Auto ignores those clips and tracks percentiles only.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            ThermalRangeControls(
-                floorCelsius = state.thermalFloorCelsius,
-                ceilingCelsius = state.thermalCeilingCelsius,
-                onRangeChange = vm::setThermalDisplayRange,
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = state.displayAutoRange,
+                    onClick = { vm.setDisplayAutoRange(!state.displayAutoRange) },
+                    label = { Text(if (state.displayAutoRange) "Auto range: ON" else "Auto range: OFF") },
+                )
+            }
+
+            Text("Stitch equalization", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Overlap brightness match on the Pi before preview.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = state.equalizationEnabled,
+                    onClick = { vm.setEqualizationEnabled(!state.equalizationEnabled) },
+                    label = {
+                        Text(if (state.equalizationEnabled) "Equalization: ON" else "Equalization: OFF")
+                    },
+                )
+            }
 
             Text("Calibration", style = MaterialTheme.typography.titleMedium)
             Button(

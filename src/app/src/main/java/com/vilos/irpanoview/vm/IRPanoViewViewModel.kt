@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.vilos.irpanoview.camera.PanoFrameDecoder
+import com.vilos.irpanoview.camera.PreviewU8Blitter
 import com.vilos.irpanoview.camera.ThermalDisplaySettings
 import com.vilos.irpanoview.camera.ThermalFrameView
 import com.vilos.irpanoview.camera.hik.HikIrConfigSettings
@@ -13,16 +14,22 @@ import com.vilos.irpanoview.model.ConnectionState
 import com.vilos.irpanoview.model.ThermalColorPalette
 import com.vilos.irpanoview.network.PiConnectionManager
 import com.vilos.irpanoview.network.PiControlClient
-import com.vilos.irpanoview.network.ThermalStreamReceiver
+import com.vilos.irpanoview.network.PiWifiHelper
+import com.vilos.irpanoview.network.PreviewFrameParser
+import com.vilos.irpanoview.network.PreviewStreamReceiver
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class IRPanoViewUiState(
     val connection: ConnectionState = ConnectionState.Disconnected,
@@ -31,12 +38,16 @@ data class IRPanoViewUiState(
     val temporalAverageFrames: Int = HikPreviewSettings.DEFAULT_TEMPORAL_AVERAGE_FRAMES,
     val thermalFloorCelsius: Double = ThermalDisplaySettings.defaultFloorCelsius(),
     val thermalCeilingCelsius: Double = ThermalDisplaySettings.defaultCeilingCelsius(),
+    val displayAutoRange: Boolean = false,
+    val equalizationEnabled: Boolean = true,
     val irEmissivity: Double = HikIrConfigSettings.DEFAULT_EMISSIVITY,
     val irDistanceM: Double = HikIrConfigSettings.DEFAULT_DISTANCE_M,
     val irAmbientCelsius: Double = HikIrConfigSettings.DEFAULT_AMBIENT_C,
     val debugStatsEnabled: Boolean = false,
     val demoMode: Boolean = false,
     val piHost: String = PiConnectionManager.defaultPiHost(),
+    val wifiSsid: String? = null,
+    val statusLine: String = "Starting…",
     val piConnected: Boolean = false,
     val streamFps: Double = 0.0,
     val stitchFps: Double = 0.0,
@@ -48,18 +59,22 @@ data class IRPanoViewUiState(
 
 class IRPanoViewViewModel(application: Application) : AndroidViewModel(application) {
 
+    private val app = application
     private val appSettings = AppSettingsRepository(application)
     private val controlClient = PiControlClient()
-    private val streamReceiver = ThermalStreamReceiver(viewModelScope)
+    private val previewReceiver = PreviewStreamReceiver(viewModelScope)
+    private val previewBlitter = PreviewU8Blitter()
 
     val piStatus: StateFlow<PiControlClient.PiStatus> = controlClient.status
-    val streamStats: StateFlow<ThermalStreamReceiver.StreamStats> = streamReceiver.stats
+    val streamStats: StateFlow<PreviewStreamReceiver.StreamStats> = previewReceiver.stats
 
     private val settingsOpen = MutableStateFlow(false)
     private val palette = MutableStateFlow(ThermalColorPalette.default())
     private val temporalAverageFrames = MutableStateFlow(HikPreviewSettings.DEFAULT_TEMPORAL_AVERAGE_FRAMES)
     private val thermalFloorCelsius = MutableStateFlow(ThermalDisplaySettings.defaultFloorCelsius())
     private val thermalCeilingCelsius = MutableStateFlow(ThermalDisplaySettings.defaultCeilingCelsius())
+    private val displayAutoRange = MutableStateFlow(false)
+    private val equalizationEnabled = MutableStateFlow(true)
     private val irEmissivity = MutableStateFlow(HikIrConfigSettings.DEFAULT_EMISSIVITY)
     private val irDistanceM = MutableStateFlow(HikIrConfigSettings.DEFAULT_DISTANCE_M)
     private val irAmbientCelsius = MutableStateFlow(HikIrConfigSettings.DEFAULT_AMBIENT_C)
@@ -67,10 +82,15 @@ class IRPanoViewViewModel(application: Application) : AndroidViewModel(applicati
     private val demoMode = MutableStateFlow(false)
     private val piHost = MutableStateFlow(PiConnectionManager.defaultPiHost())
     private val windowRange = MutableStateFlow(20.0 to 40.0)
+    private val wifiSsid = MutableStateFlow<String?>(null)
+    private val statusLine = MutableStateFlow("Starting…")
 
     private var panoView: ThermalFrameView? = null
     private var demoJob: Job? = null
+    private var sessionJob: Job? = null
     private var demoPhase = 0
+    private var lastPreviewFrame: PreviewFrameParser.ParsedFrame? = null
+    private var pushedControls = false
 
     private val localUi = combine(
         combine(settingsOpen, palette, temporalAverageFrames, thermalFloorCelsius, thermalCeilingCelsius) {
@@ -81,8 +101,11 @@ class IRPanoViewViewModel(application: Application) : AndroidViewModel(applicati
                 e, d, a, dbg, demo ->
             IrDemo(e, d, a, dbg, demo)
         },
-        combine(windowRange, piHost) { window, host -> window to host },
-    ) { quint, irDemo, windowHost ->
+        combine(windowRange, piHost, displayAutoRange, equalizationEnabled) { window, host, auto, eq ->
+            WindowHost(window, host, auto, eq)
+        },
+        combine(wifiSsid, statusLine) { ssid, status -> ssid to status },
+    ) { quint, irDemo, wh, wifiStatus ->
         LocalInputs(
             settings = quint.settings,
             pal = quint.palette,
@@ -94,8 +117,12 @@ class IRPanoViewViewModel(application: Application) : AndroidViewModel(applicati
             ambient = irDemo.ambient,
             debug = irDemo.debug,
             demo = irDemo.demo,
-            window = windowHost.first,
-            piHost = windowHost.second,
+            window = wh.window,
+            piHost = wh.piHost,
+            autoRange = wh.autoRange,
+            equalization = wh.equalization,
+            wifiSsid = wifiStatus.first,
+            statusLine = wifiStatus.second,
         )
     }
 
@@ -118,19 +145,23 @@ class IRPanoViewViewModel(application: Application) : AndroidViewModel(applicati
             temporalAverageFrames = local.temporal,
             thermalFloorCelsius = local.floor,
             thermalCeilingCelsius = local.ceiling,
+            displayAutoRange = local.autoRange,
+            equalizationEnabled = local.equalization,
             irEmissivity = local.ems,
             irDistanceM = local.dist,
             irAmbientCelsius = local.ambient,
             debugStatsEnabled = local.debug,
             demoMode = local.demo,
             piHost = local.piHost,
+            wifiSsid = local.wifiSsid,
+            statusLine = local.statusLine,
             piConnected = pi.connected,
             streamFps = stream.fps,
-            stitchFps = pi.stitchFps,
+            stitchFps = pi.compositorHz,
             windowMinC = local.window.first,
             windowMaxC = local.window.second,
             cameraHealthSummary = health,
-            lastError = pi.lastError,
+            lastError = null,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), IRPanoViewUiState())
 
@@ -145,6 +176,12 @@ class IRPanoViewViewModel(application: Application) : AndroidViewModel(applicati
             ThermalDisplaySettings.setRange(floor, ceiling)
         }
         viewModelScope.launch {
+            displayAutoRange.value = appSettings.readDisplayAutoRange()
+        }
+        viewModelScope.launch {
+            equalizationEnabled.value = appSettings.readEqualizationEnabled()
+        }
+        viewModelScope.launch {
             val (ems, dist, ambient) = appSettings.readIrConfig()
             HikIrConfigSettings.set(ems, dist, ambient)
             irEmissivity.value = ems
@@ -155,23 +192,28 @@ class IRPanoViewViewModel(application: Application) : AndroidViewModel(applicati
             debugStatsEnabled.value = appSettings.readDebugStatsEnabled()
         }
         viewModelScope.launch {
-            piHost.value = appSettings.readPiHost()
+            val host = appSettings.readPiHost()
+            piHost.value = host
+            // Persist migration away from irpanoview.local
+            appSettings.setPiHost(host)
         }
         viewModelScope.launch {
-            streamReceiver.latestFrame.collect { frame ->
-                if (frame == null || demoMode.value) return@collect
-                val decoded = PanoFrameDecoder.decodeFlatRawGrid(
-                    rawPixels = frame.rawPixels,
-                    width = frame.width,
-                    height = frame.height,
-                    palette = palette.value,
-                    floorC = thermalFloorCelsius.value,
-                    ceilingC = thermalCeilingCelsius.value,
-                )
-                windowRange.value = decoded.windowMinC to decoded.windowMaxC
-                panoView?.updateBitmap(decoded.bitmap)
-            }
+            previewReceiver.latestFrame
+                .filterNotNull()
+                .conflate()
+                .collect { frame ->
+                    if (demoMode.value) return@collect
+                    lastPreviewFrame = frame
+                    val bmp = withContext(Dispatchers.Default) {
+                        previewBlitter.blit(frame.pixels, frame.width, frame.height, palette.value)
+                    }
+                    windowRange.value = frame.minC.toDouble() to frame.maxC.toDouble()
+                    withContext(Dispatchers.Main) {
+                        panoView?.updateBitmap(bmp)
+                    }
+                }
         }
+        startAutoSession()
     }
 
     fun attachPanoView(view: ThermalFrameView) {
@@ -181,28 +223,116 @@ class IRPanoViewViewModel(application: Application) : AndroidViewModel(applicati
     fun onAppResumed() {
         if (demoMode.value) {
             startDemoLoop()
+        } else {
+            startAutoSession()
         }
     }
 
-    fun connectPi() {
-        val url = PiConnectionManager.wsUrl(piHost.value)
-        controlClient.connect(url)
-        streamReceiver.start()
+    private fun startAutoSession() {
+        if (demoMode.value) return
+        synchronized(this) {
+            if (sessionJob?.isActive == true) return
+            sessionJob = viewModelScope.launch {
+                PiWifiHelper.clearProcessNetworkBind(app)
+                while (isActive && !demoMode.value) {
+                    wifiSsid.value = PiWifiHelper.currentSsid(app)
+                    statusLine.value = "Looking for Pi at ${PiConnectionManager.PI_AP_GATEWAY}…"
+                    if (!PiWifiHelper.piReachable()) {
+                        statusLine.value =
+                            "Waiting for Pi at ${PiConnectionManager.PI_AP_GATEWAY}… " +
+                                "(on WiFi ${wifiSsid.value ?: PiConnectionManager.PI_WIFI_SSID})"
+                        delay(2_000)
+                        continue
+                    }
+
+                    val host = AppSettingsRepository.canonicalizePiHost(piHost.value).ifBlank {
+                        PiConnectionManager.PI_AP_GATEWAY
+                    }
+                    piHost.value = host
+
+                    statusLine.value = "Connecting to Pi ($host)…"
+                    ensureLinked(host)
+
+                    var previewDownTicks = 0
+                    while (isActive && !demoMode.value) {
+                        wifiSsid.value = PiWifiHelper.currentSsid(app)
+                        val piOk = controlClient.status.value.connected
+                        val previewOk = previewReceiver.stats.value.connected
+                        when {
+                            piOk && previewOk -> {
+                                previewDownTicks = 0
+                                statusLine.value =
+                                    "Live · ${"%.0f".format(previewReceiver.stats.value.fps)} fps · " +
+                                        "compose ${"%.0f".format(controlClient.status.value.compositorHz)} Hz"
+                                if (!pushedControls) {
+                                    pushAllControls()
+                                    pushedControls = true
+                                }
+                            }
+                            piOk && !previewOk -> {
+                                previewDownTicks++
+                                statusLine.value = "Reconnecting preview ($host:8769)…"
+                                if (previewDownTicks >= 3) {
+                                    previewReceiver.start(host)
+                                    previewDownTicks = 0
+                                }
+                            }
+                            else -> {
+                                previewDownTicks = 0
+                                statusLine.value = "Reconnecting…"
+                                ensureLinked(host)
+                            }
+                        }
+                        if (!PiWifiHelper.piReachable()) {
+                            statusLine.value = "Pi unreachable — waiting for WiFi…"
+                            break
+                        }
+                        delay(1_000)
+                    }
+                    delay(500)
+                }
+            }
+        }
+    }
+
+    private fun ensureLinked(host: String) {
+        val url = PiConnectionManager.wsUrl(host)
+        android.util.Log.i("IRPanoSession", "ensureLinked host=$host url=$url")
+        if (!controlClient.status.value.connected) {
+            controlClient.connect(url)
+        }
+        previewReceiver.start(host)
         controlClient.requestStatus()
     }
 
-    fun disconnectPi() {
+    private fun pushAllControls() {
+        pushDisplayRangeToPi()
+        controlClient.setEqualization(equalizationEnabled.value)
+        controlClient.setTemporalAverage(temporalAverageFrames.value)
+        controlClient.setIrConfig(
+            irEmissivity.value,
+            irDistanceM.value,
+            irAmbientCelsius.value,
+        )
+    }
+
+    private fun stopSession() {
+        sessionJob?.cancel()
+        sessionJob = null
         controlClient.disconnect()
-        streamReceiver.stop()
+        previewReceiver.stop()
+        lastPreviewFrame = null
+        pushedControls = false
     }
 
     fun setDemoMode(enabled: Boolean) {
         demoMode.value = enabled
         if (enabled) {
-            disconnectPi()
+            stopSession()
             startDemoLoop()
         } else {
             demoJob?.cancel()
+            startAutoSession()
         }
     }
 
@@ -212,6 +342,13 @@ class IRPanoViewViewModel(application: Application) : AndroidViewModel(applicati
 
     fun setPalette(p: ThermalColorPalette) {
         palette.value = p
+        val frame = lastPreviewFrame ?: return
+        viewModelScope.launch(Dispatchers.Default) {
+            val bmp = previewBlitter.blit(frame.pixels, frame.width, frame.height, p)
+            withContext(Dispatchers.Main) {
+                panoView?.updateBitmap(bmp)
+            }
+        }
     }
 
     fun setTemporalAverageFrames(count: Int) {
@@ -227,6 +364,34 @@ class IRPanoViewViewModel(application: Application) : AndroidViewModel(applicati
             appSettings.setThermalDisplayRange(floorC, ceilingC)
             thermalFloorCelsius.value = ThermalDisplaySettings.floorCelsius
             thermalCeilingCelsius.value = ThermalDisplaySettings.ceilingCelsius
+            displayAutoRange.value = false
+            appSettings.setDisplayAutoRange(false)
+            // Explicit false so Pi leaves auto mode even if StateFlow races.
+            controlClient.setDisplayRange(
+                floorC = ThermalDisplaySettings.floorCelsius,
+                ceilingC = ThermalDisplaySettings.ceilingCelsius,
+                auto = false,
+            )
+        }
+    }
+
+    fun setDisplayAutoRange(auto: Boolean) {
+        viewModelScope.launch {
+            displayAutoRange.value = auto
+            appSettings.setDisplayAutoRange(auto)
+            controlClient.setDisplayRange(
+                floorC = thermalFloorCelsius.value,
+                ceilingC = thermalCeilingCelsius.value,
+                auto = auto,
+            )
+        }
+    }
+
+    fun setEqualizationEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            equalizationEnabled.value = enabled
+            appSettings.setEqualizationEnabled(enabled)
+            controlClient.setEqualization(enabled)
         }
     }
 
@@ -244,6 +409,10 @@ class IRPanoViewViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             appSettings.setPiHost(host)
             piHost.value = appSettings.readPiHost()
+            pushedControls = false
+            // Force reconnect on new host
+            controlClient.disconnect()
+            previewReceiver.stop()
         }
     }
 
@@ -256,6 +425,14 @@ class IRPanoViewViewModel(application: Application) : AndroidViewModel(applicati
 
     fun triggerManualNuc() {
         controlClient.triggerNuc()
+    }
+
+    private fun pushDisplayRangeToPi() {
+        controlClient.setDisplayRange(
+            floorC = thermalFloorCelsius.value,
+            ceilingC = thermalCeilingCelsius.value,
+            auto = displayAutoRange.value,
+        )
     }
 
     private fun startDemoLoop() {
@@ -279,8 +456,9 @@ class IRPanoViewViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     override fun onCleared() {
-        disconnectPi()
+        stopSession()
         demoJob?.cancel()
+        previewBlitter.release()
         super.onCleared()
     }
 
@@ -300,6 +478,13 @@ class IRPanoViewViewModel(application: Application) : AndroidViewModel(applicati
         val demo: Boolean,
     )
 
+    private data class WindowHost(
+        val window: Pair<Double, Double>,
+        val piHost: String,
+        val autoRange: Boolean,
+        val equalization: Boolean,
+    )
+
     private data class LocalInputs(
         val settings: Boolean,
         val pal: ThermalColorPalette,
@@ -313,5 +498,9 @@ class IRPanoViewViewModel(application: Application) : AndroidViewModel(applicati
         val demo: Boolean,
         val window: Pair<Double, Double>,
         val piHost: String,
+        val autoRange: Boolean,
+        val equalization: Boolean,
+        val wifiSsid: String?,
+        val statusLine: String,
     )
 }

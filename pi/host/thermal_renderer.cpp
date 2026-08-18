@@ -93,16 +93,17 @@ void ThermalRenderer::resolveWindow(
     size_t pixel_count,
     double& out_min,
     double& out_max) const {
-    if (!config_.auto_range) {
-        out_min = config_.floor_c;
-        out_max = std::max(config_.ceiling_c, config_.floor_c + kDefaultMinSpanC);
-        return;
-    }
-
+    // Always derive the LUT window from scene radiometrics. Floor/ceiling are soft
+    // caps (clip interest), not hard LUT endpoints — e.g. ceiling=100 with scene
+    // max=60 maps 0..255 across the real ~60 C span, not an empty stretch to 100.
     std::vector<double> samples;
     samples.reserve(pixel_count / 16 + 1);
     for (size_t i = 0; i < pixel_count; i += 16) {
-        samples.push_back(celsiusFromRaw(pano[i]));
+        const uint16_t raw = pano[i];
+        if (raw == 0) {
+            continue; // uncovered warp/edge — exclude from range stats
+        }
+        samples.push_back(celsiusFromRaw(raw));
     }
     if (samples.empty()) {
         out_min = config_.floor_c;
@@ -117,8 +118,30 @@ void ThermalRenderer::resolveWindow(
     work = samples;
     const double p99 = nthPercentile(work, 99.5);
     const double span_max = *std::max_element(samples.begin(), samples.end());
-    out_min = p_lo;
-    out_max = std::max(p_hi, std::max(p99, span_max - 0.5));
+    double scene_min = p_lo;
+    double scene_max = std::max(p_hi, std::max(p99, span_max - 0.5));
+
+    if (config_.auto_range) {
+        out_min = scene_min;
+        out_max = scene_max;
+    } else {
+        out_min = std::max(scene_min, config_.floor_c);
+        out_max = std::min(scene_max, config_.ceiling_c);
+        if (out_max <= out_min) {
+            // Entire scene outside the interest band — pin to nearest edge.
+            if (scene_max <= config_.floor_c) {
+                out_min = config_.floor_c;
+                out_max = config_.floor_c + kDefaultMinSpanC;
+            } else if (scene_min >= config_.ceiling_c) {
+                out_max = config_.ceiling_c;
+                out_min = config_.ceiling_c - kDefaultMinSpanC;
+            } else {
+                out_min = config_.floor_c;
+                out_max = std::max(config_.ceiling_c, config_.floor_c + kDefaultMinSpanC);
+            }
+        }
+    }
+
     if (out_max - out_min < kDefaultMinSpanC) {
         const double mid = (out_min + out_max) / 2.0;
         out_min = mid - kDefaultMinSpanC / 2.0;
@@ -192,11 +215,24 @@ bool ThermalRenderer::renderDisplayU8(
         return false;
     }
 
+    // Manual (clipped) mode: refresh every frame so floor/ceiling edits are instant
+    // and the scene-derived span stays current. Auto: periodic percentile refresh.
     static int frame_counter = 0;
     static double cached_min = 20.0;
     static double cached_max = 40.0;
-    if ((frame_counter++ % kWindowRefreshFrames) == 0) {
+    static bool cached_auto = true;
+    static double cached_floor = 20.0;
+    static double cached_ceiling = 40.0;
+    const bool need_refresh = (!config_.auto_range) ||
+        (cached_auto != config_.auto_range) ||
+        (cached_floor != config_.floor_c) ||
+        (cached_ceiling != config_.ceiling_c) ||
+        ((frame_counter++ % kWindowRefreshFrames) == 0);
+    if (need_refresh) {
         resolveWindow(pano, expected, cached_min, cached_max);
+        cached_auto = config_.auto_range;
+        cached_floor = config_.floor_c;
+        cached_ceiling = config_.ceiling_c;
     }
     out_min_c = cached_min;
     out_max_c = cached_max;

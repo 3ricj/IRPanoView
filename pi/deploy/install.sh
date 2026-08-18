@@ -33,9 +33,10 @@ sudo udevadm control --reload-rules
 sudo modprobe -r uvcvideo 2>/dev/null || true
 sudo systemctl restart avahi-daemon 2>/dev/null || true
 sudo systemctl daemon-reload
-# Host/control services are installed but not auto-enabled — start manually when needed.
-# sudo systemctl enable --now irpanoview-host irpanoview-control
+# Prefer enable scripts (correct User=, Restart=always, paths under ~/IRPanoView):
+#   sudo bash "$ROOT/deploy/enable-host-boot.sh"   # host + control
+#   sudo bash "$ROOT/deploy/enable-control-boot.sh"  # control :8766 only
 
 echo "Install complete."
-echo "Shared WiFi: join Pi and phone to the same AP; use irpanoview.local or Pi LAN IP in the app."
-echo "Standalone hotspot (future): see deploy/hostapd.conf and deploy/dnsmasq.conf"
+echo "Enable boot services: sudo bash $ROOT/deploy/enable-host-boot.sh"
+echo "Standalone hotspot: see deploy/hostapd.conf and deploy/dnsmasq.conf"

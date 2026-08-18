@@ -1,7 +1,6 @@
 package com.vilos.irpanoview.camera
 
 import com.vilos.irpanoview.camera.hik.HikFrameDecoder
-import com.vilos.irpanoview.camera.hik.HikTherm
 import kotlin.math.max
 import kotlin.math.min
 
@@ -12,8 +11,12 @@ object ThermalDisplaySettings {
     const val DEFAULT_CEILING_C = 40.0
     const val MIN_SPAN_C = 2.0
 
-    val sensorMinC: Double = HikTherm.PLAUSIBLE_MIN_C
-    val sensorMaxC: Double = HikTherm.PLAUSIBLE_MAX_C
+    /** Wildlife interest band for floor/ceiling sliders (not full sensor span). */
+    const val UI_MIN_C = 10.0
+    const val UI_MAX_C = 50.0
+
+    val sensorMinC: Double = UI_MIN_C
+    val sensorMaxC: Double = UI_MAX_C
 
     @Volatile
     var floorCelsius: Double = defaultFloorCelsius()

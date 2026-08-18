@@ -150,11 +150,25 @@ void PanoCompositor::runLoop() {
                 const uint64_t t2 = steadyNowUs();
                 eq_us = t1 - t0;
                 stitch_us = t2 - t1;
-            } else if (use_offsets_) {
+            } else if (stitch_mode_ == StitchMode::Offset && use_offsets_) {
+                const uint64_t t0 = steadyNowUs();
                 equalizer_.process(tiles, offsets_);
+                const uint64_t t1 = steadyNowUs();
                 offset_stitch_.stitch(tiles, offsets_, snap.pano.data(), snap.pano.size());
+                const uint64_t t2 = steadyNowUs();
+                eq_us = t1 - t0;
+                stitch_us = t2 - t1;
             } else {
+                // Edge abut: still run thermal overlap eq from position_shift widths when present.
+                const uint64_t t0 = steadyNowUs();
+                if (use_offsets_) {
+                    equalizer_.process(tiles, offsets_);
+                }
+                const uint64_t t1 = steadyNowUs();
                 stitch_.stitch(tiles, snap.pano.data(), snap.pano.size());
+                const uint64_t t2 = steadyNowUs();
+                eq_us = t1 - t0;
+                stitch_us = t2 - t1;
             }
         }
 
